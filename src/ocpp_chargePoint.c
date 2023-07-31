@@ -1377,7 +1377,7 @@ static void *ocpp_chargePoint_ChangeAvailability_thread(void * arg){
             if(i > ocpp_chargePoint->numberOfConnector){
                 
                 for(i = 0; i < ocpp_chargePoint->numberOfConnector; i++){
-                    ocpp_chargePoint->setConnectorStatus(i, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROE, OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE);
+                    ocpp_chargePoint->setConnectorStatus(i, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROR, OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE);
                     
                 }
                 return;
@@ -1386,7 +1386,7 @@ static void *ocpp_chargePoint_ChangeAvailability_thread(void * arg){
 			
         }else{
             if(ocpp_chargePoint->transaction_obj[connector]->isTransaction == false){
-                ocpp_chargePoint->setConnectorStatus(connector, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROE, OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE);
+                ocpp_chargePoint->setConnectorStatus(connector, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROR, OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE);
                 
                 return;
 
@@ -1415,7 +1415,7 @@ void ocpp_chargePoint_manageChangeAvailabilityRequest(const char * uniqueId ,ocp
 
     if(changeAvailability_req.type == OCPP_PACKAGE_AVAILABILITY_TYPE_OPERATIVE){
         if(ocpp_chargePoint->connector[changeAvailability_req.connectorId]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE){
-            ocpp_chargePoint->setConnectorStatus(changeAvailability_req.connectorId, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROE, OCPP_PACKAGE_CHARGEPOINT_STATUS_AVAILABLE);
+            ocpp_chargePoint->setConnectorStatus(changeAvailability_req.connectorId, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROR, OCPP_PACKAGE_CHARGEPOINT_STATUS_AVAILABLE);
             
 
 
@@ -6249,7 +6249,7 @@ void ocpp_chargePoint_init(ocpp_chargePoint_t * pile){
     ocpp_chargePoint->connector = (ocpp_package_StatusNotification_req_t **)calloc(ocpp_chargePoint->numberOfConnector + 1 ,sizeof(ocpp_package_StatusNotification_req_t *));
     for(i = 0; i <= ocpp_chargePoint->numberOfConnector; i++){
         ocpp_chargePoint->connector[i] = (ocpp_package_StatusNotification_req_t *)calloc(1, sizeof(ocpp_package_StatusNotification_req_t));
-        ocpp_chargePoint->connector[i]->errorCode = OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROE;
+        ocpp_chargePoint->connector[i]->errorCode = OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROR;
         ocpp_chargePoint->connector[i]->status = OCPP_PACKAGE_CHARGEPOINT_STATUS_AVAILABLE;
     }
 
