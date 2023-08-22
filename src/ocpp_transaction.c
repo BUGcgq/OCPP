@@ -480,6 +480,7 @@ void * ocpp_transaction_transaction(void * arg){
 
                         item->authorizeResult = ocpp_chargePoint_authorizationOfIdentifier(item->tdata->idTag, &lastUniqueId);
                         OCPP_LOG_DEBUG("last = %s",lastUniqueId);
+                        printf("授权结果 = %d\n",item->authorizeResult);
                         if(lastUniqueId != NULL) strncpy(item->lastUniqueId, lastUniqueId, 40);
                         OCPP_LOG_DEBUG("Authorize Result = %d",item->authorizeResult);
                         switch(item->authorizeResult){
@@ -540,6 +541,7 @@ void * ocpp_transaction_transaction(void * arg){
                         attempts++;
                         RetriesInterval = ocpp_AuxiliaryTool_getSystemTime_ms();
                         isWaitResult = true;
+                        printf("服务器连接,等待回复\n");
                         OCPP_LOG_DEBUG("服务器连接,等待回复");
                     }else{
 
@@ -549,6 +551,7 @@ void * ocpp_transaction_transaction(void * arg){
 
                         item->status = OCPP_TRANSACTION_STATE_CHARGING;
                         item->startTransaction.transactionId = ocpp_AuxiliaryTool_GenerateInt();
+                        printf("服务器未连接,不需要等待回复\n");
                         OCPP_LOG_DEBUG("服务器未连接,不需要等待回复");
                     }
 
@@ -559,7 +562,7 @@ void * ocpp_transaction_transaction(void * arg){
 
                             if(item->startTransaction.idTagInfo.AuthorizationStatus == OCPP_LOCAL_AUTHORIZATION_ACCEPTED){
                                 OCPP_LOG_DEBUG("允许充电");
-
+                                printf("允许充电\n");
                                 ////启动充电,并设置认证成功
                                 ocpp_chargePoint->startCharging(item->tdata->connector);
                                 item->status = OCPP_TRANSACTION_STATE_CHARGING;

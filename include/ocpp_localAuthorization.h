@@ -22,16 +22,18 @@ extern "C" {
 
 
 //7.2. AuthorizationStatus
-enum OCPP_LOCAL_AUTHORIZATION_STATUS_E{
-    OCPP_LOCAL_AUTHORIZATION_ACCEPTED = 0,            //Identifier is allowed for charging
-    OCPP_LOCAL_AUTHORIZATION_BLOCKED,                 //Identifier has been blocked. Not allowed for charging
-    OCPP_LOCAL_AUTHORIZATION_EXPIRED,                 //Identifier has expired. Not allowed for charging
-    OCPP_LOCAL_AUTHORIZATION_INVALID,                 //Identifier is unknown. Not allowed for charging
-    OCPP_LOCAL_AUTHORIZATION_CONCURRENTTX,            //Identifier is already involved in another transaction and multiple transactions are not allowed. 
-                                                      //(Only relevant for a StartTransaction.req.)
+
+enum OCPP_LOCAL_AUTHORIZATION_STATUS_E {
+    OCPP_LOCAL_AUTHORIZATION_ACCEPTED = 0,            // 授权已接受，允许充电
+    OCPP_LOCAL_AUTHORIZATION_BLOCKED,                 // 授权已被阻止，不允许充电
+    OCPP_LOCAL_AUTHORIZATION_EXPIRED,                 // 授权已过期，不允许充电
+    OCPP_LOCAL_AUTHORIZATION_INVALID,                 // 授权无效，不允许充电
+    OCPP_LOCAL_AUTHORIZATION_CONCURRENTTX,            // 授权已参与另一个交易，不允许多个交易
+                                                      // （仅适用于 StartTransaction.req）
 
     OCPP_LOCAL_AUTHORIZATION_MAX
 };
+
 
 static const char * ocpp_localAuthorizationStatus_Text[] = {
     "Accepted",
