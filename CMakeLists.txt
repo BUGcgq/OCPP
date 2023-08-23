@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
 project(YourCProjectName C)
-
+set(CMAKE_C_STANDARD 99)
 # 设置你的库名，例如 "myevent"
 set(LIB_NAME "OCPP")
 

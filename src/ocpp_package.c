@@ -22,7 +22,7 @@
  */
 char *ocpp_package_prepare_Authorize_Request(const char *UniqueId, ocpp_package_Authorize_req_t *Authorize)
 {
-    if(UniqueId == NULL || Authorize == NULL)
+    if (UniqueId == NULL || Authorize == NULL)
     {
         return NULL;
     }
@@ -53,7 +53,7 @@ char *ocpp_package_prepare_Authorize_Request(const char *UniqueId, ocpp_package_
  */
 char *ocpp_package_prepare_BootNotification_Request(const char *UniqueId, ocpp_package_BootNotification_req_t *BootNotification)
 {
-    if(UniqueId == NULL || BootNotification == NULL)
+    if (UniqueId == NULL || BootNotification == NULL)
     {
         return NULL;
     }
@@ -121,7 +121,7 @@ char *ocpp_package_prepare_BootNotification_Request(const char *UniqueId, ocpp_p
  */
 char *ocpp_package_prepare_DataTransfer_Request(const char *UniqueId, ocpp_package_DataTransfer_req_t *DataTransfer)
 {
-    if(UniqueId == NULL || DataTransfer == NULL)
+    if (UniqueId == NULL || DataTransfer == NULL)
     {
         return NULL;
     }
@@ -161,7 +161,7 @@ char *ocpp_package_prepare_DataTransfer_Request(const char *UniqueId, ocpp_packa
  */
 char *ocpp_package_prepare_DiagnosticsStatusNotification_Request(const char *UniqueId, ocpp_package_DiagnosticsStatusNotification_req_t *DiagnosticsStatusNotification)
 {
-    if(UniqueId == NULL || DiagnosticsStatusNotification == NULL)
+    if (UniqueId == NULL || DiagnosticsStatusNotification == NULL)
     {
         return NULL;
     }
@@ -191,7 +191,7 @@ char *ocpp_package_prepare_DiagnosticsStatusNotification_Request(const char *Uni
  */
 char *ocpp_package_prepare_FirmwareStatusNotification_Request(const char *UniqueId, ocpp_package_FirmwareStatusNotification_req_t *FirmwareStatusNotification)
 {
-    if(UniqueId == NULL || FirmwareStatusNotification == NULL)
+    if (UniqueId == NULL || FirmwareStatusNotification == NULL)
     {
         return NULL;
     }
@@ -242,7 +242,6 @@ char *ocpp_package_prepare_Heartbeat_Request(const char *UniqueId, ocpp_package_
     return message;
 }
 
-
 /**
  * @description: 创建 MeterValues.req消息
  * @param:
@@ -250,7 +249,7 @@ char *ocpp_package_prepare_Heartbeat_Request(const char *UniqueId, ocpp_package_
  */
 char *ocpp_package_prepare_MeterValues_Request(const char *UniqueId, ocpp_package_MeterValues_req_t *MeterValues)
 {
-    if(UniqueId == NULL || MeterValues == NULL)
+    if (UniqueId == NULL || MeterValues == NULL)
     {
         return NULL;
     }
@@ -320,7 +319,7 @@ char *ocpp_package_prepare_MeterValues_Request(const char *UniqueId, ocpp_packag
  */
 char *ocpp_package_prepare_StartTransaction_Request(const char *UniqueId, ocpp_package_StartTransaction_req_t *StartTransaction)
 {
-    if(UniqueId == NULL || StartTransaction == NULL)
+    if (UniqueId == NULL || StartTransaction == NULL)
     {
         return NULL;
     }
@@ -359,7 +358,7 @@ char *ocpp_package_prepare_StartTransaction_Request(const char *UniqueId, ocpp_p
  */
 char *ocpp_package_prepare_StatusNotification_Request(const char *UniqueId, ocpp_package_StatusNotification_req_t *StatusNotification)
 {
-    if(UniqueId == NULL || StatusNotification == NULL)
+    if (UniqueId == NULL || StatusNotification == NULL)
     {
         return NULL;
     }
@@ -403,7 +402,7 @@ char *ocpp_package_prepare_StatusNotification_Request(const char *UniqueId, ocpp
  */
 char *ocpp_package_prepare_StopTransaction_Request(const char *UniqueId, ocpp_package_StopTransaction_req_t *StopTransaction)
 {
-    if(UniqueId == NULL || StopTransaction == NULL)
+    if (UniqueId == NULL || StopTransaction == NULL)
     {
         return NULL;
     }
@@ -463,7 +462,7 @@ char *ocpp_package_prepare_StopTransaction_Request(const char *UniqueId, ocpp_pa
  */
 char *ocpp_package_prepare_CancelReservation_Response(const char *UniqueId, ocpp_package_CancelReservation_conf_t *CancelReservation)
 {
-    if(UniqueId == NULL || CancelReservation == NULL)
+    if (UniqueId == NULL || CancelReservation == NULL)
     {
         return NULL;
     }
@@ -492,7 +491,7 @@ char *ocpp_package_prepare_CancelReservation_Response(const char *UniqueId, ocpp
  */
 char *ocpp_package_prepare_ChangeAvailability_Response(const char *UniqueId, ocpp_package_ChangeAvailability_conf_t *ChangeAvailability)
 {
-    if(UniqueId == NULL || ChangeAvailability == NULL)
+    if (UniqueId == NULL || ChangeAvailability == NULL)
     {
         return NULL;
     }
@@ -521,7 +520,7 @@ char *ocpp_package_prepare_ChangeAvailability_Response(const char *UniqueId, ocp
  */
 char *ocpp_package_prepare_ChangeConfiguration_Response(const char *UniqueId, ocpp_package_ChangeConfiguration_conf_t *ChangeConfiguration)
 {
-    if(UniqueId == NULL || ChangeConfiguration == NULL)
+    if (UniqueId == NULL || ChangeConfiguration == NULL)
     {
         return NULL;
     }
@@ -550,7 +549,7 @@ char *ocpp_package_prepare_ChangeConfiguration_Response(const char *UniqueId, oc
  */
 char *ocpp_package_prepare_ClearCache_Response(const char *UniqueId, ocpp_package_ClearCache_conf_t *ClearCache)
 {
-    if(UniqueId == NULL || ClearCache == NULL)
+    if (UniqueId == NULL || ClearCache == NULL)
     {
         return NULL;
     }
@@ -579,7 +578,7 @@ char *ocpp_package_prepare_ClearCache_Response(const char *UniqueId, ocpp_packag
  */
 char *ocpp_package_prepare_ClearChargingProfile_Response(const char *UniqueId, ocpp_package_ClearChargingProfile_conf_t *ClearChargingProfile)
 {
-    if(UniqueId == NULL || ClearChargingProfile == NULL)
+    if (UniqueId == NULL || ClearChargingProfile == NULL)
     {
         return NULL;
     }
@@ -608,7 +607,7 @@ char *ocpp_package_prepare_ClearChargingProfile_Response(const char *UniqueId, o
  */
 char *ocpp_package_prepare_DataTransfer_Response(const char *UniqueId, ocpp_package_DataTransfer_conf_t *DataTransfer)
 {
-    if(UniqueId == NULL || DataTransfer == NULL)
+    if (UniqueId == NULL || DataTransfer == NULL)
     {
         return NULL;
     }
@@ -641,7 +640,7 @@ char *ocpp_package_prepare_DataTransfer_Response(const char *UniqueId, ocpp_pack
  */
 char *ocpp_package_prepare_GetLocalListVersion_Response(const char *UniqueId, ocpp_package_GetLocalListVersion_conf_t *GetLocalListVersion)
 {
-    if(UniqueId == NULL || GetLocalListVersion == NULL)
+    if (UniqueId == NULL || GetLocalListVersion == NULL)
     {
         return NULL;
     }
@@ -669,7 +668,7 @@ char *ocpp_package_prepare_GetLocalListVersion_Response(const char *UniqueId, oc
  */
 char *ocpp_package_prepare_GetCompositeSchedule_Response(const char *UniqueId, ocpp_package_GetCompositeSchedule_conf_t *GetCompositeSchedule)
 {
-    if(UniqueId == NULL || GetCompositeSchedule == NULL)
+    if (UniqueId == NULL || GetCompositeSchedule == NULL)
     {
         return NULL;
     }
@@ -751,7 +750,7 @@ char *ocpp_package_prepare_GetCompositeSchedule_Response(const char *UniqueId, o
  */
 char *ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_package_GetConfiguration_conf_t *GetConfiguration)
 {
-    if(UniqueId == NULL || GetConfiguration == NULL)
+    if (UniqueId == NULL || GetConfiguration == NULL)
     {
         return NULL;
     }
@@ -761,16 +760,19 @@ char *ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_
 
     struct json_object *payload_object = json_object_new_object();
 
-    if (GetConfiguration->configurationKeyIsUse) {
+    if (GetConfiguration->configurationKeyIsUse)
+    {
         struct json_object *config_keys_array = json_object_new_array();
 
         int i = 0;
-        for (i = 0; i < GetConfiguration->numberOfConfigurationKey; i++) {
+        for (i = 0; i < GetConfiguration->numberOfConfigurationKey; i++)
+        {
             struct json_object *config_key_object = json_object_new_object();
             json_object_object_add(config_key_object, "key", json_object_new_string(GetConfiguration->configurationKey[i]->key));
             json_object_object_add(config_key_object, "readonly", json_object_new_boolean(GetConfiguration->configurationKey[i]->readonly));
 
-            if (GetConfiguration->configurationKey[i]->valueIsUse) {
+            if (GetConfiguration->configurationKey[i]->valueIsUse)
+            {
                 json_object_object_add(config_key_object, "value", json_object_new_string(GetConfiguration->configurationKey[i]->value));
             }
 
@@ -780,11 +782,13 @@ char *ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_
         json_object_object_add(payload_object, "configurationKey", config_keys_array);
     }
 
-    if (GetConfiguration->unknownKeyIsUse) {
+    if (GetConfiguration->unknownKeyIsUse)
+    {
         struct json_object *unknown_keys_array = json_object_new_array();
 
         int i = 0;
-        for (i = 0; i < GetConfiguration->numberOfUnknownKey; i++) {
+        for (i = 0; i < GetConfiguration->numberOfUnknownKey; i++)
+        {
             json_object_array_add(unknown_keys_array, json_object_new_string(GetConfiguration->unknownKey[i]));
         }
 
@@ -808,7 +812,7 @@ char *ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_
  */
 char *ocpp_package_prepare_GetDiagnostics_Response(const char *UniqueId, ocpp_package_GetDiagnostics_conf_t *GetDiagnostics)
 {
-    if(UniqueId == NULL || GetDiagnostics == NULL)
+    if (UniqueId == NULL || GetDiagnostics == NULL)
     {
         return NULL;
     }
@@ -817,7 +821,8 @@ char *ocpp_package_prepare_GetDiagnostics_Response(const char *UniqueId, ocpp_pa
     json_object_array_add(root_object, json_object_new_string(UniqueId));
 
     struct json_object *payload_object = json_object_new_object();
-    if (GetDiagnostics->fileNameIsUse) {
+    if (GetDiagnostics->fileNameIsUse)
+    {
         json_object_object_add(payload_object, "fileName", json_object_new_string(GetDiagnostics->fileName));
     }
 
@@ -838,7 +843,7 @@ char *ocpp_package_prepare_GetDiagnostics_Response(const char *UniqueId, ocpp_pa
  */
 char *ocpp_package_prepare_RemoteStartTransaction_Response(const char *UniqueId, ocpp_package_RemoteStartTransaction_conf_t *RemoteStartTransaction)
 {
-    if(UniqueId == NULL || RemoteStartTransaction == NULL)
+    if (UniqueId == NULL || RemoteStartTransaction == NULL)
     {
         return NULL;
     }
@@ -866,7 +871,7 @@ char *ocpp_package_prepare_RemoteStartTransaction_Response(const char *UniqueId,
  */
 char *ocpp_package_prepare_RemoteStopTransaction_Response(const char *UniqueId, ocpp_package_RemoteStopTransaction_conf_t *RemoteStopTransaction)
 {
-    if(UniqueId == NULL || RemoteStopTransaction == NULL)
+    if (UniqueId == NULL || RemoteStopTransaction == NULL)
     {
         return NULL;
     }
@@ -894,7 +899,7 @@ char *ocpp_package_prepare_RemoteStopTransaction_Response(const char *UniqueId, 
  */
 char *ocpp_package_prepare_ReserveNow_Response(const char *UniqueId, ocpp_package_ReserveNow_conf_t *ReserveNow)
 {
-    if(UniqueId == NULL || ReserveNow == NULL)
+    if (UniqueId == NULL || ReserveNow == NULL)
     {
         return NULL;
     }
@@ -922,7 +927,7 @@ char *ocpp_package_prepare_ReserveNow_Response(const char *UniqueId, ocpp_packag
  */
 char *ocpp_package_prepare_Reset_Response(const char *UniqueId, ocpp_package_Reset_conf_t *Reset)
 {
-    if(UniqueId == NULL || Reset == NULL)
+    if (UniqueId == NULL || Reset == NULL)
     {
         return NULL;
     }
@@ -950,7 +955,7 @@ char *ocpp_package_prepare_Reset_Response(const char *UniqueId, ocpp_package_Res
  */
 char *ocpp_package_prepare_SendLocalList_Response(const char *UniqueId, ocpp_package_SendLocalList_conf_t *SendLocalList)
 {
-    if(UniqueId == NULL || SendLocalList == NULL)
+    if (UniqueId == NULL || SendLocalList == NULL)
     {
         return NULL;
     }
@@ -978,7 +983,7 @@ char *ocpp_package_prepare_SendLocalList_Response(const char *UniqueId, ocpp_pac
  */
 char *ocpp_package_prepare_SetChargingProfile_Response(const char *UniqueId, ocpp_package_SetChargingProfile_conf_t *SetChargingProfile)
 {
-    if(UniqueId == NULL || SetChargingProfile == NULL)
+    if (UniqueId == NULL || SetChargingProfile == NULL)
     {
         return NULL;
     }
@@ -1006,7 +1011,7 @@ char *ocpp_package_prepare_SetChargingProfile_Response(const char *UniqueId, ocp
  */
 char *ocpp_package_prepare_TriggerMessage_Response(const char *UniqueId, ocpp_package_TriggerMessage_conf_t *TriggerMessage)
 {
-    if(UniqueId == NULL || TriggerMessage == NULL)
+    if (UniqueId == NULL || TriggerMessage == NULL)
     {
         return NULL;
     }
@@ -1034,7 +1039,7 @@ char *ocpp_package_prepare_TriggerMessage_Response(const char *UniqueId, ocpp_pa
  */
 char *ocpp_package_prepare_UnlockConnector_Response(const char *UniqueId, ocpp_package_UnlockConnector_conf_t *UnlockConnector)
 {
-    if(UniqueId == NULL || UnlockConnector == NULL)
+    if (UniqueId == NULL || UnlockConnector == NULL)
     {
         return NULL;
     }
@@ -1053,7 +1058,6 @@ char *ocpp_package_prepare_UnlockConnector_Response(const char *UniqueId, ocpp_p
     json_object_put(root_object);
 
     return message;
-    
 }
 
 /**
@@ -1063,7 +1067,7 @@ char *ocpp_package_prepare_UnlockConnector_Response(const char *UniqueId, ocpp_p
  */
 char *ocpp_package_prepare_UpdateFirmware_Response(const char *UniqueId, ocpp_package_UpdateFirmware_conf_t *UpdateFirmware)
 {
-    if(UniqueId == NULL || UpdateFirmware == NULL)
+    if (UniqueId == NULL || UpdateFirmware == NULL)
     {
         return NULL;
     }
@@ -1091,7 +1095,7 @@ char *ocpp_package_prepare_UpdateFirmware_Response(const char *UniqueId, ocpp_pa
  */
 char *ocpp_package_prepare_CallError(const char *UniqueId, ocpp_package_CallError_t *callError)
 {
-    if(UniqueId == NULL || callError == NULL)
+    if (UniqueId == NULL || callError == NULL)
     {
         return NULL;
     }
@@ -1109,9 +1113,11 @@ char *ocpp_package_prepare_CallError(const char *UniqueId, ocpp_package_CallErro
 
     struct json_object *detail_object = json_object_new_object();
 
-    if (callError->errorDetailCnt > 0) {
+    if (callError->errorDetailCnt > 0)
+    {
         int i = 0;
-        for (i = 0; i < callError->errorDetailCnt; i++) {
+        for (i = 0; i < callError->errorDetailCnt; i++)
+        {
             char key[20];
             snprintf(key, sizeof(key), "errorDetail%d", i + 1);
             json_object_object_add(detail_object, key, json_object_new_string(callError->detail));
@@ -1127,7 +1133,4 @@ char *ocpp_package_prepare_CallError(const char *UniqueId, ocpp_package_CallErro
     json_object_put(root_array);
 
     return message;
-
 }
-
-

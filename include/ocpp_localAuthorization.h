@@ -66,7 +66,7 @@ typedef struct{
 int ocpp_localAuthorization_Cache_clearCache(void);
 int ocpp_localAuthorization_Cache_write(ocpp_localAuthorization_cache_record_t * cache_record);
 bool ocpp_localAuthorization_Cache_isVaild(const char * idTag);
-char **ocpp_localAuthorization_Cache_getAllInvaild(int * inVaildCnt);
+// char **ocpp_localAuthorization_Cache_getAllInvaild(int * inVaildCnt);
 bool ocpp_localAuthorization_Cache_search(const char * idTag);
 
 
