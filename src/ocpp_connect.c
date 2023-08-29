@@ -94,6 +94,29 @@ static int ocpp_connect_websocket_send_back(struct lws *wsi_in, char *str, int s
 		free(out);
 	return n;
 }
+/**
+ * @description: 发送ping
+ * @param:
+ * @return:
+ */
+static int send_ping(struct lws *wsi)
+{
+    unsigned char ping_payload[LWS_PRE + 125];
+    memset(ping_payload, 0, sizeof(ping_payload));
+
+    int len = lws_write(wsi, &ping_payload[LWS_PRE], 0, LWS_WRITE_PING);
+    if (len < 0)
+    {
+		lwsl_notice("Ping sent ERROR!\n"); // 在发送成功时打印消息
+        return -1; // 发送失败
+    }
+    else
+    {
+        lwsl_notice("Ping sent successfully!\n"); // 在发送成功时打印消息
+		return 0; // 发送成功
+    }
+
+}
 
 /**
  * @description: 回调函数
@@ -104,6 +127,8 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 {
 
 	// printf("       reason = %d\n",reason);
+	static int pingCounter = 0;
+	static int pingTimer = 200;// 设置为200以实现每10秒发送一次Ping帧
 	switch (reason)
 	{
 	case LWS_CALLBACK_PROTOCOL_INIT:
@@ -128,7 +153,6 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 	case LWS_CALLBACK_CLIENT_CLOSED:
 		lwsl_notice("%s: CLOSED: %s\n", __func__, in ? (char *)in : "(null)");
 		session_data.connect->interrupted = true;
-		session_data.connect->isConnect = false;
 		break;
 
 	case LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER:
@@ -157,27 +181,36 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 	break;
 
 	case LWS_CALLBACK_TIMER:
-		// lwsl_notice("%s: timer >>>>>>>>>>>>>>>>>>>\n",__func__);
-		// Let the main loop know we want to send another message to the server
+		pingCounter++;
+
+		if (pingCounter >= pingTimer)
+		{
+			pingCounter = 0;
+
+			// 发送ping帧
+			if (send_ping(wsi) < 0)
+			{
+				// ping失败，执行重新连接
+				lwsl_notice("ping失败,执行重新连接\n");
+				session_data.connect->interrupted = true;
+			}
+		}
+
 		lws_callback_on_writable(wsi);
 
 		break;
 
 	case LWS_CALLBACK_CLIENT_WRITEABLE:
-		// lwsl_notice("%s: Write >>>>>>>>>>>>>>>>>>>\n",__func__);
-		lws_set_timer_usecs(wsi, 50 * 1000); // 50ms
-
 		pthread_mutex_lock(&session_data.buffLock);
 		if (session_data.sendDataLen > 0)
 		{
-
 			if (ocpp_connect_websocket_send_back(wsi, session_data.sendbuff, session_data.sendDataLen) < session_data.sendDataLen)
 				return -1;
 			session_data.sendDataLen = 0;
 			session_data.connect->isSendFinish = true;
 		}
 		pthread_mutex_unlock(&session_data.buffLock);
-
+		lws_set_timer_usecs(wsi, 50 * 1000); // 50ms
 		break;
 
 	case LWS_CALLBACK_CLIENT_RECEIVE:
@@ -185,6 +218,10 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 		//			OCPP_LOG_INFO("[RECV] = %s",(char *)in);
 		session_data.connect->receive((char *)in, len);
 
+		break;
+		
+	case LWS_CALLBACK_RECEIVE_PONG:
+		lwsl_notice("Received PONG frame\n"); // 在接收到pong帧时打印消息
 		break;
 
 	default:
@@ -210,8 +247,7 @@ static void ocpp_connect_init_lws_context_creation_info(struct lws_context_creat
 	//	info->keepalive_ping_interval = 5;     // 设置 ping 间隔为 5 秒
 	info->keepalive_timeout = 10; // 设置 ping 超时时间为 10 秒
 
-	info->options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT; // 初始化SSL库
-
+	info->options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;					   // 初始化SSL库
 	info->client_ssl_private_key_password = NULL;							   // 私钥
 	info->client_ssl_cert_filepath = NULL;									   // 客户端的证书
 	info->client_ssl_cert_mem = NULL;										   // 从内存而不是文件加载客户端证书
@@ -231,7 +267,7 @@ static void ocpp_connect_init_lws_context_creation_info(struct lws_context_creat
  * @description:
  * @param:
  * @return:
- */
+//  */
 static void ocpp_connect_init_lws_protocols(struct lws_protocols *protocol, ocpp_connect_t *const connect)
 {
 
@@ -258,7 +294,6 @@ static void ocpp_connect_send(const char *const message, size_t len)
 
 	return;
 }
-
 /**
  * @description: 建立websock连接
  * @param:
@@ -267,49 +302,56 @@ static void ocpp_connect_send(const char *const message, size_t len)
 static void *ocpp_connect_websocket(ocpp_connect_t *const connect)
 {
 	OCPP_LOG_DEBUG("创建websock连接线程");
-	// printf("%s = %p\n",__func__,arg);
-	// ocpp_connect_t * connect = (ocpp_connect_t *)arg;
-	// printf("%s = %p\n",__func__,connect);
-
 	struct lws_context *context = NULL;
 	struct lws_protocols protocol;
 	struct lws_context_creation_info info;
 
-	// 初始化缓存区
-	memset(session_data.sendbuff, 0, OCPP_CONNECT_SEND_BUFFER);
-	session_data.sendDataLen = 0;
-	pthread_mutex_init(&session_data.buffLock, NULL);
-
-	ocpp_connect_init_lws_protocols(&protocol, connect);
-	ocpp_connect_init_lws_context_creation_info(&info, &protocol, connect);
-	// printf("%s protocol = %p\n",__func__,&protocol);
-Reconnection:
-	OCPP_LOG_DEBUG("context start\n");
-	context = lws_create_context(&info);
-
-	if (context == NULL)
+	while (1)
 	{
-		printf("conntext NULL,connect fail\n");
-		goto RETRY;
+		// 初始化缓存区
+		memset(session_data.sendbuff, 0, OCPP_CONNECT_SEND_BUFFER);
+		session_data.sendDataLen = 0;
+		pthread_mutex_init(&session_data.buffLock, NULL);
+
+		ocpp_connect_init_lws_protocols(&protocol, connect);
+		ocpp_connect_init_lws_context_creation_info(&info, &protocol, connect);
+
+		OCPP_LOG_DEBUG("context start");
+		context = lws_create_context(&info);
+
+		if (context)
+		{
+			session_data.context = context;
+			session_data.connect = connect;
+			session_data.protocol = &protocol;
+			OCPP_LOG_DEBUG("start server callback");
+
+			int n = 0;
+			while (n >= 0 && !connect->interrupted)
+			{
+				n = lws_service(context, 0);
+
+				if (!connect->interrupted && !connect->isConnect)
+				{
+					connect->interrupted = false; // 设置为 false，表示成功连接后不中断
+				}
+			}
+
+			lwsl_notice("%s: exiting service, interrupted = %d\n", __func__, connect->interrupted);
+			lws_context_destroy(context);
+			connect->isConnect = false;
+		}
+		else
+		{
+			printf("context NULL, connect fail\n");
+		}
+
+		lwsl_notice("重新连接...\n"); // 在重新连接时添加打印
+
+		usleep(5 * 1000 * 1000);
 	}
 
-	session_data.context = context;
-	session_data.connect = connect;
-	session_data.protocol = &protocol;
-	OCPP_LOG_DEBUG("start server callback");
-	int n = 0;
-	while (n >= 0 && connect->interrupted == false)
-		n = lws_service(context, 0);
-
-	lwsl_notice("%s: exiting service , interrupted = %d\n", __func__, connect->interrupted);
-
-	lws_context_destroy(context);
-	connect->interrupted = false;
-	connect->isConnect = false;
-RETRY:
-	usleep(5 * 1000 * 1000);
-
-	goto Reconnection;
+	return NULL;
 }
 
 /**
@@ -345,28 +387,3 @@ void ocpp_connect_init(ocpp_connect_t *const connect)
 
 	printf("connect init end\n");
 }
-
-/**
- * @description: 建立websock连接
- * @param:
- * @return:
- */
-// int main(void){
-// 	printf("in main\n");
-
-// 	ocpp_connect_t connect;
-
-// 	connect.isWss = true;
-// 	connect.ssl_ca_filepath = "/app/core/ssl/ca/cacert.pem";
-// 	connect.protocolName = "ocpp1.6";
-// 	connect.address = "baal.tuyacn.com";
-// 	connect.port = 9000;
-// 	connect.path = "/h5wa015ajqA2Eg8D";
-// 	connect.username = "h5wa015ajqA2Eg8D";
-// 	connect.password = "LDhf7qM2Pw5P8p92";
-// 	connect.interrupted = true;
-
-// 	ocpp_connect_init(&connect);
-
-// 	while(1){}
-// }
