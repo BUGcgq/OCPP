@@ -14,7 +14,7 @@
 // struct lws_context_creation_info   https://libwebsockets.org/lws-api-doc-main/html/structlws__context__creation__info.html
 
 #define OCPP_CONNECT_SEND_BUFFER 2048 // 发送缓存区大小
-
+#define PING_COUNTER_OVER_MAX 200	  // 设置为200以实现每10秒发送一次Ping帧
 // 每个使用这个协议的新连接在建立连接时都会分配这么多内存，在断开连接时会释放这么多内存。指向此按连接分配的指针被传递到user参数中的回调中
 typedef struct
 {
@@ -101,21 +101,20 @@ static int ocpp_connect_websocket_send_back(struct lws *wsi_in, char *str, int s
  */
 static int send_ping(struct lws *wsi)
 {
-    unsigned char ping_payload[LWS_PRE + 125];
-    memset(ping_payload, 0, sizeof(ping_payload));
+	unsigned char ping_payload[LWS_PRE + 125];
+	memset(ping_payload, 0, sizeof(ping_payload));
 
-    int len = lws_write(wsi, &ping_payload[LWS_PRE], 0, LWS_WRITE_PING);
-    if (len < 0)
-    {
+	int len = lws_write(wsi, &ping_payload[LWS_PRE], 0, LWS_WRITE_PING);
+	if (len < 0)
+	{
 		lwsl_notice("Ping sent ERROR!\n"); // 在发送成功时打印消息
-        return -1; // 发送失败
-    }
-    else
-    {
-        lwsl_notice("Ping sent successfully!\n"); // 在发送成功时打印消息
-		return 0; // 发送成功
-    }
-
+		return -1;						   // 发送失败
+	}
+	else
+	{
+		lwsl_notice("Ping sent successfully!\n"); // 在发送成功时打印消息
+		return 0;								  // 发送成功
+	}
 }
 
 /**
@@ -128,7 +127,6 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 
 	// printf("       reason = %d\n",reason);
 	static int pingCounter = 0;
-	static int pingTimer = 200;// 设置为200以实现每10秒发送一次Ping帧
 	switch (reason)
 	{
 	case LWS_CALLBACK_PROTOCOL_INIT:
@@ -181,9 +179,10 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 	break;
 
 	case LWS_CALLBACK_TIMER:
+
 		pingCounter++;
 
-		if (pingCounter >= pingTimer)
+		if (pingCounter >= PING_COUNTER_OVER_MAX)
 		{
 			pingCounter = 0;
 
@@ -219,7 +218,7 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 		session_data.connect->receive((char *)in, len);
 
 		break;
-		
+
 	case LWS_CALLBACK_RECEIVE_PONG:
 		lwsl_notice("Received PONG frame\n"); // 在接收到pong帧时打印消息
 		break;
@@ -294,6 +293,10 @@ static void ocpp_connect_send(const char *const message, size_t len)
 
 	return;
 }
+int current_reconnect_attempt = 0;
+
+#define MAX_RECONNECT_ATTEMPTS 3
+#define MAX_WAIT_TIME_SECONDS (10 * 60)
 /**
  * @description: 建立websock连接
  * @param:
@@ -301,13 +304,13 @@ static void ocpp_connect_send(const char *const message, size_t len)
  */
 static void *ocpp_connect_websocket(ocpp_connect_t *const connect)
 {
-	OCPP_LOG_DEBUG("创建websock连接线程");
-	struct lws_context *context = NULL;
-	struct lws_protocols protocol;
-	struct lws_context_creation_info info;
-
 	while (1)
 	{
+		lwsl_notice("连接服务器\n");
+		struct lws_context *context = NULL;
+		struct lws_protocols protocol;
+		struct lws_context_creation_info info;
+
 		// 初始化缓存区
 		memset(session_data.sendbuff, 0, OCPP_CONNECT_SEND_BUFFER);
 		session_data.sendDataLen = 0;
@@ -316,39 +319,54 @@ static void *ocpp_connect_websocket(ocpp_connect_t *const connect)
 		ocpp_connect_init_lws_protocols(&protocol, connect);
 		ocpp_connect_init_lws_context_creation_info(&info, &protocol, connect);
 
-		OCPP_LOG_DEBUG("context start");
-		context = lws_create_context(&info);
-
-		if (context)
+		while (1)
 		{
-			session_data.context = context;
-			session_data.connect = connect;
-			session_data.protocol = &protocol;
-			OCPP_LOG_DEBUG("start server callback");
+			context = lws_create_context(&info);
 
-			int n = 0;
-			while (n >= 0 && !connect->interrupted)
+			if (context == NULL)
 			{
-				n = lws_service(context, 0);
-
-				if (!connect->interrupted && !connect->isConnect)
-				{
-					connect->interrupted = false; // 设置为 false，表示成功连接后不中断
-				}
+				lwsl_notice("连接服务器成功失败:等待一段时间后重试\n");
+				usleep(5 * 1000 * 1000); // 等待一段时间后重试
 			}
-
-			lwsl_notice("%s: exiting service, interrupted = %d\n", __func__, connect->interrupted);
-			lws_context_destroy(context);
-			connect->isConnect = false;
+			else
+			{
+				break; // 成功创建 context，跳出重试循环
+			}
 		}
-		else
+
+		session_data.context = context;
+		session_data.connect = connect;
+		session_data.protocol = &protocol;
+
+		int n = 0;
+		while (n >= 0 && connect->interrupted == false)
 		{
-			printf("context NULL, connect fail\n");
+			n = lws_service(context, 0);
+			if (n < 0)
+			{
+				lwsl_notice("lws_service returned error: %d\n", n);
+				break;
+			}
 		}
 
-		lwsl_notice("重新连接...\n"); // 在重新连接时添加打印
+		lwsl_notice("exiting service , interrupted = %d\n", connect->interrupted);
 
-		usleep(5 * 1000 * 1000);
+		lws_context_destroy(context);
+		connect->interrupted = false;
+		connect->isConnect = false;
+
+		usleep(5 * 1000 * 1000); // 等待一段时间后进行下一次连接尝试
+
+		current_reconnect_attempt++;
+
+		lwsl_notice("第%d次尝试重连\n",current_reconnect_attempt);
+
+        if (current_reconnect_attempt >= MAX_RECONNECT_ATTEMPTS)
+        {
+            lwsl_notice("达到最大重连次数%d,等待10分钟后再重试\n",MAX_RECONNECT_ATTEMPTS);
+            sleep(MAX_WAIT_TIME_SECONDS); // 等待一段时间后重试
+            current_reconnect_attempt = 0; // 重置重连计数
+        }
 	}
 
 	return NULL;

@@ -38,15 +38,15 @@ set(COMMON_LINK_LIBS
 )
 
 # 创建共享库
-add_library(${LIB_NAME}_shared SHARED ${SOURCE_FILES})
-set_target_properties(${LIB_NAME}_shared PROPERTIES
+add_library(${LIB_NAME} SHARED ${SOURCE_FILES})
+set_target_properties(${LIB_NAME} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}  # 输出路径与编译路径一致
 )
-target_link_libraries(${LIB_NAME}_shared PUBLIC ${COMMON_LINK_LIBS})
+target_link_libraries(${LIB_NAME} PUBLIC ${COMMON_LINK_LIBS})
 
 # 创建静态库
-add_library(${LIB_NAME}_static STATIC ${SOURCE_FILES})
-set_target_properties(${LIB_NAME}_static PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}  # 输出路径与编译路径一致
-)
-target_link_libraries(${LIB_NAME}_static PUBLIC ${COMMON_LINK_LIBS})
+#add_library(${LIB_NAME}_static STATIC ${SOURCE_FILES})
+#set_target_properties(${LIB_NAME}_static PROPERTIES
+#    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}  # 输出路径与编译路径一致
+#)
+#target_link_libraries(${LIB_NAME}_static PUBLIC ${COMMON_LINK_LIBS})
