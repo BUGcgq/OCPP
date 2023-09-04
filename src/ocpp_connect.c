@@ -296,7 +296,7 @@ static void ocpp_connect_send(const char *const message, size_t len)
 int current_reconnect_attempt = 0;
 
 #define MAX_RECONNECT_ATTEMPTS 3
-#define MAX_WAIT_TIME_SECONDS (10 * 60)
+#define MAX_WAIT_TIME_SECONDS 3 
 /**
  * @description: 建立websock连接
  * @param:
@@ -363,8 +363,8 @@ static void *ocpp_connect_websocket(ocpp_connect_t *const connect)
 
         if (current_reconnect_attempt >= MAX_RECONNECT_ATTEMPTS)
         {
-            lwsl_notice("达到最大重连次数%d,等待10分钟后再重试\n",MAX_RECONNECT_ATTEMPTS);
-            sleep(MAX_WAIT_TIME_SECONDS); // 等待一段时间后重试
+            lwsl_notice("达到最大重连次数%d,等待%d分钟后再重试\n",MAX_RECONNECT_ATTEMPTS,MAX_WAIT_TIME_SECONDS);
+            sleep(MAX_WAIT_TIME_SECONDS *60); // 等待一段时间后重试
             current_reconnect_attempt = 0; // 重置重连计数
         }
 	}

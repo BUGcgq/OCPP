@@ -22,7 +22,7 @@ include_directories(
     include
     ${EXT_LIB_DIR}/sqlite-3.33-nuc970/include
     ${EXT_LIB_DIR}/json-c-0.9-nuc970/include
-    ${EXT_LIB_DIR}/libwebsocket-nuc970/include
+    ${EXT_LIB_DIR}/libwebsockets/include
     ${EXT_LIB_DIR}/openssl-1.1.0g-nuc970/include
 )
 
@@ -32,7 +32,7 @@ set(COMMON_LINK_LIBS
     -lpthread
     ${EXT_LIB_DIR}/sqlite-3.33-nuc970/lib/libsqlite3.so
     ${EXT_LIB_DIR}/json-c-0.9-nuc970/lib/libjson-c.so
-    ${EXT_LIB_DIR}/libwebsocket-nuc970/lib/libwebsockets.so
+    ${EXT_LIB_DIR}/libwebsockets/lib/libwebsockets.so
     ${EXT_LIB_DIR}/openssl-1.1.0g-nuc970/lib/libssl.so
     ${EXT_LIB_DIR}/openssl-1.1.0g-nuc970/lib/libcrypto.so
 )
