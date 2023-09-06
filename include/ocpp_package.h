@@ -521,27 +521,15 @@ static const char * ocpp_package_GetCompositeScheduleStatus_text[] = {
 typedef struct{
 	int startPeriod;
 	double limit;
-
-	char numberPhasesIsUse:1;
-	int numberPhases;
+	int numberPhases;//
 }ocpp_package_chargingSchedulePeriod_t;
 
 typedef struct{
-
-	char durationIsUse:1;
-	int duration;
-
-	char startScheduleIsUse:1;
-	char startSchedule[32];
-
-	enum OCPP_PACKAGE_CHARGING_RATE_UNIT_TYPE_E chargingRateUnit;
-
-	int numberOfchargingSchedulePeriod;
-	ocpp_package_chargingSchedulePeriod_t **chargingSchedulePeriod;
-
-
-	char minChargingRateIsUse:1;
-	double minChargingRate;
+	int numberOfchargingSchedulePeriod; //结构体数组大小，遍历这个结构体的时候用到
+	int duration;//[非必须]  配置持续时间，如果为空，最后一个chargingSchedulePeriod配置的值为最后持续时间
+	int startSchedule;//[非必须] 时刻表的起始点，如果为空，起始值为一次充电的开始时间
+    char chargingRateUnit[32];  // 时刻表配置项单位  W：功率配置（直流桩一般限制功率） A：电流配置（交流桩一般限制电流）
+    ocpp_package_chargingSchedulePeriod_t * chargingSchedulePeriod;
 
 }ocpp_package_chargingSchedule_t;
 
@@ -562,33 +550,22 @@ typedef struct{
 
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>GetConfiguration.req
-typedef struct{
-	char keyIsUse:1;
-	int numberOfKey;
-	char **key;
-}ocpp_package_GetConfiguration_req_t;
+typedef struct {
+    int numberOfKey;
+    char **key;
+} ocpp_package_GetConfiguration_req_t;
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>GetConfiguration.conf
 typedef struct{
+	int  numberOfKey;
 	char key[50];
-	bool readonly;
-	
-	char valueIsUse:1;
+	int type;
+	int accessibility;
+	int IsUse;
 	char value[500];
-
-}ocpp_package_KeyValue_t;
-
-
-typedef struct{
-	char configurationKeyIsUse:1;
-	int numberOfConfigurationKey;
-	ocpp_package_KeyValue_t **configurationKey;
-
-	char unknownKeyIsUse:1;
-	int numberOfUnknownKey;
-	char **unknownKey;
-
 }ocpp_package_GetConfiguration_conf_t;
+
+
 
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>GetDiagnostics.req
@@ -819,42 +796,41 @@ static const char * ocpp_package_MeterValues_MS_unit_text[] = {
 };
 
 
+typedef struct {
+    int contextIsUse; // 是否使用context字段
+    int formatIsUse; // 是否使用format字段
+    int locationIsUse; // 是否使用location字段
+    int measurandIsUse; // 是否使用measurand字段
+    int phaseIsUse; // 是否使用phase字段
+    int unitIsUse; // 是否使用unit字段
+    
+    char format[32]; // 采样值的格式，例如"Raw"
+    char context[32]; // 采样值的格式，例如"Raw"
+    char location[32]; // 采样值的位置，例如"Outlet"
+    char measurand[32]; // 采样值的测量指标，例如"Voltage"
+    char phase[32]; // 采样值的相位信息，例如"Phase.A"
+    char unit[32]; // 采样值的单位，例如"V"
+    char value[16]; // 采样值的实际值，例如"224.70"
+} ocpp_package_MeterValues_M_SampledValue;
 
-typedef struct{
-	char value[16];
-
-	char contextIsUse:1;
-	enum OCPP_PACKAGE_METERVALUES_MS_CONTEXT_E context;
-
-	char formatIsUse:1;
-	enum OCPP_PACKAGE_METERVALUES_MS_FORMAT_E format;
-
-	char measurandIsUse:1;
-	enum OCPP_PACKAGE_METERVALUES_MS_MEASURAND_E measurand;
-
-	char phaseIsUse:1;
-	enum OCPP_PACKAGE_METERVALUES_MS_PHASE_E phase;
-
-	char locationIsUse:1;
-	enum OCPP_PACKAGE_METERVALUES_MS_LOCATION_E location;
-
-	char unitIsUse:1;
-	enum OCPP_PACKAGE_METERVALUES_MS_UNIT_E unit;
-
-}ocpp_package_MeterValues_M_SampledValue_t;
-
+typedef struct {
+	char transactionIdIsUse;
+    int connectorId; // 充电接口的ID
+    int transactionId; // 事务ID
+    char timestamp[32]; // 时间戳，格式为"2023-08-09T11:47:41.000Z"
+	int  sampledValueCnt;
+    ocpp_package_MeterValues_M_SampledValue *sampledValue; // 采样值数组
+} ocpp_package_MeterValues_req;
 
 typedef struct{
 	char timestamp[32];
-
 	int sampledValueCnt;
-	ocpp_package_MeterValues_M_SampledValue_t **sampledValue;
+	ocpp_package_MeterValues_M_SampledValue *sampledValue;
 }ocpp_package_MeterValues_MeterValue_t;
 
 
 typedef struct{
 	int connectorId;
-
 	char transactionIdIsUse;
 	int transactionId;
 	ocpp_package_MeterValues_MeterValue_t meterValue;
@@ -897,27 +873,14 @@ static const char * ocpp_package_RecurrencyKindType_text[] = {
 
 
 typedef struct{
-	int chargingProfileId;
-
-	char transactionIdIsUse:1;
-	int transactionId;
-
-
-	int stackLevel;
-
-	enum OCPP_PACKAGE_CHARGING_PROFILE_PURPOSE_TYPE_E chargingProfilePurpose;
-	enum OCPP_PACKAGE_CHARGING_PROFILE_KIND_TYPE_E ChargingProfileKindType;
-
-	char recurrencyKindIsUse:1;
-	enum OCPP_PACKAGE_RECURRENCY_KIND_TYPE_E  RecurrencyKindType;
-
-
-	char validFromIsUse:1;
-	char validFrom[32];
-
-	char validToIsUse:1;
-	char validTo[32];
-	
+	int vaildFrom;//[非必须]配置生效的开始时间, 如果为空，表示立即生效
+	int vaildTo;//[非必须]配置失效时间,如果为空，表示永久生效。被其他配置替换可失效
+	int chargingProfileId;// 唯一ID，可以理解为主键
+	int transactionId;//[非必须]只有当ChargingProfilePurpose = TxProfile时才有效，针对某一次充电
+    int stackLevel;//优先级别，值越大优先级越高 >=0
+    char chargingProfilePurpose[20];  // 枚举类型，ChargePointMaxProfile:配置充电桩的最大功率/最大电流   TxDefaultProfile: 默认的配置  TxProfile:仅用于RemoteStartTransaction
+    char chargingProfileKind[20];  // 枚举类型， Absolute： chargingSchedulePeriod的定义为固定的时间点   Recurring：  Relative
+	char recurrencyKind[20];  // [非必须]枚举类型 Daily， Weekly 当chargingProfileKind为Recurring时必须
 	ocpp_package_chargingSchedule_t  chargingSchedule;
 
 }ocpp_package_chargingProfile_t;
@@ -1094,7 +1057,7 @@ typedef struct{
 	int listVersion;
 	char localAuthorizationListIsUse:1;
 	int  numberOfAuthorizationData;
-	ocpp_package_AuthorizationData_t **localAuthorizationList;
+	ocpp_package_AuthorizationData_t *localAuthorizationList;
 
 	enum OCPP_PACKAGE_UPDATE_TYPE_E UpdateType;
 }ocpp_package_SendLocalList_req_t;
@@ -1489,21 +1452,23 @@ typedef struct {
 
 
 
+int ocpp_chargePoint_sendMeterValues(int connector, int transactionId);
+int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *lastUniqueId);
+int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *idTag, int transactionId, const char *lastUniqueId, enum OCPP_PACKAGE_STOP_REASON_E reason);
+int ocpp_chargePoint_sendHeartbeat_Req();
+int ocpp_chargePoint_sendBootNotification_req();
+int ocpp_chargePoint_sendStatusNotification_Req(int connector);
+int ocpp_chargePoint_sendFinishing_Req(int connector);
+int ocpp_chargePoint_sendAuthorize_req(const char *const idTag, char *lastUniqueId);
+int ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
+int ocpp_chargePoint_sendFirmwareStatusNotification_Req();
+void ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_package_GetConfiguration_conf_t *GetConfiguration);
+void ocpp_chargePoint_manageSendLocalList_Req(const char *uniqueId, ocpp_package_SendLocalList_req_t *sendLocalList_req);
+void ocpp_chargePoint_manageRemoteStartTransaction_Req(const char *uniqueId, ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req);
+void ocpp_chargePoint_GetLocalListVersion_Req(const char *uniqueId, ocpp_package_GetLocalListVersion_req_t GetLocalListVersion_req);
 
-char * ocpp_package_prepare_Authorize_Request(const char * UniqueId, ocpp_package_Authorize_req_t * Authorize);
-char * ocpp_package_prepare_BootNotification_Request(const char * UniqueId, ocpp_package_BootNotification_req_t * BootNotification);
+
 char *ocpp_package_prepare_DataTransfer_Request(const char * UniqueId,ocpp_package_DataTransfer_req_t * DataTransfer);
-char *ocpp_package_prepare_DiagnosticsStatusNotification_Request(const char *UniqueId, ocpp_package_DiagnosticsStatusNotification_req_t * DiagnosticsStatusNotification);
-char *ocpp_package_prepare_FirmwareStatusNotification_Request(const char *UniqueId, ocpp_package_FirmwareStatusNotification_req_t * FirmwareStatusNotification);
-char *ocpp_package_prepare_Heartbeat_Request(const char *UniqueId,ocpp_package_Heartbeat_req_t * Heartbeat);
-char *ocpp_package_prepare_MeterValues_Request(const char *UniqueId,ocpp_package_MeterValues_req_t * MeterValues);
-char *ocpp_package_prepare_StartTransaction_Request(const char *UniqueId,ocpp_package_StartTransaction_req_t * StartTransaction);
-char *ocpp_package_prepare_StatusNotification_Request(const char *UniqueId,ocpp_package_StatusNotification_req_t * StatusNotification);
-char *ocpp_package_prepare_StopTransaction_Request(const char *UniqueId,ocpp_package_StopTransaction_req_t * StopTransaction);
-
-
-
-
 char *ocpp_package_prepare_CancelReservation_Response(const char *UniqueId, ocpp_package_CancelReservation_conf_t * CancelReservation);
 char *ocpp_package_prepare_ChangeAvailability_Response(const char *UniqueId, ocpp_package_ChangeAvailability_conf_t * ChangeAvailability);
 char *ocpp_package_prepare_ChangeConfiguration_Response(const char *UniqueId, ocpp_package_ChangeConfiguration_conf_t * ChangeConfiguration);
@@ -1512,13 +1477,10 @@ char *ocpp_package_prepare_ClearChargingProfile_Response(const char *UniqueId, o
 char *ocpp_package_prepare_DataTransfer_Response(const char * UniqueId,ocpp_package_DataTransfer_conf_t * DataTransfer);
 char *ocpp_package_prepare_GetLocalListVersion_Response(const char *UniqueId, ocpp_package_GetLocalListVersion_conf_t * GetLocalListVersion);
 char *ocpp_package_prepare_GetCompositeSchedule_Response(const char *UniqueId, ocpp_package_GetCompositeSchedule_conf_t * GetCompositeSchedule);
-char *ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_package_GetConfiguration_conf_t * GetConfiguration);
 char *ocpp_package_prepare_GetDiagnostics_Response(const char *UniqueId, ocpp_package_GetDiagnostics_conf_t * GetDiagnostics);
-char *ocpp_package_prepare_RemoteStartTransaction_Response(const char *UniqueId, ocpp_package_RemoteStartTransaction_conf_t * RemoteStartTransaction);
 char *ocpp_package_prepare_RemoteStopTransaction_Response(const char *UniqueId, ocpp_package_RemoteStopTransaction_conf_t * ReserveNow);
 char *ocpp_package_prepare_ReserveNow_Response(const char *UniqueId, ocpp_package_ReserveNow_conf_t * ReserveNow);
 char *ocpp_package_prepare_Reset_Response(const char *UniqueId, ocpp_package_Reset_conf_t * Reset);
-char *ocpp_package_prepare_SendLocalList_Response(const char *UniqueId, ocpp_package_SendLocalList_conf_t * SendLocalList);
 char *ocpp_package_prepare_SetChargingProfile_Response(const char *UniqueId, ocpp_package_SetChargingProfile_conf_t * SetChargingProfile);
 char *ocpp_package_prepare_TriggerMessage_Response(const char *UniqueId, ocpp_package_TriggerMessage_conf_t * TriggerMessage);
 char *ocpp_package_prepare_UnlockConnector_Response(const char *UniqueId, ocpp_package_UnlockConnector_conf_t * UnlockConnector);

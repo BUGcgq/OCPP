@@ -43,60 +43,57 @@ enum OCPP_CONFIGURATION_KEY_DATA_TYPE_E{
     OCPP_CK_DT_NONE
 };
 
-enum OCPP_CONFIGURATION_KEY_E {
-    // Core Profile
-    OCPP_CK_AllowOfflineTxForUnknownId = 0,               // 是否允许未知用户离线充电
-    OCPP_CK_AuthorizationCacheEnabled,                    // 是否启用授权缓存
-    OCPP_CK_AuthorizeRemoteTxRequests,                    // 是否允许远程授权充电请求
-    OCPP_CK_BlinkRepeat,                                  // 充电指示灯闪烁次数
-    OCPP_CK_ClockAlignedDataInterval,                     // 对齐数据间隔
-    OCPP_CK_ConnectionTimeOut,                            // 连接超时时间
-    OCPP_CK_GetConfigurationMaxKeys,                      // 获取配置的最大键数
-    OCPP_CK_HeartbeatInterval,                            // 心跳间隔
-    OCPP_CK_LightIntensity,                               // 灯光强度
-    OCPP_CK_LocalAuthorizeOffline,                        // 离线本地授权
-    OCPP_CK_LocalPreAuthorize,                            // 本地预授权
-    OCPP_CK_MaxEnergyOnInvalidId,                         // 无效 ID 时的最大能量
-    OCPP_CK_MeterValuesAlignedData,                       // 对齐的电表值数据
-    OCPP_CK_MeterValuesAlignedDataMaxLength,              // 对齐的电表值数据的最大长度
-    OCPP_CK_MeterValuesSampledData,                       // 采样的电表值数据
-    OCPP_CK_MeterValuesSampledDataMaxLength,              // 采样的电表值数据的最大长度
-    OCPP_CK_MeterValueSampleInterval,                     // 电表值采样间隔
-    OCPP_CK_MinimumStatusDuration,                        // 最小状态持续时间
-    OCPP_CK_NumberOfConnectors,                           // 连接器数量
-    OCPP_CK_ResetRetries,                                 // 重置尝试次数
-    OCPP_CK_ConnectorPhaseRotation,                       // 连接器相位旋转
-    OCPP_CK_ConnectorPhaseRotationMaxLength,              // 连接器相位旋转的最大长度
-    OCPP_CK_StopTransactionOnEVSideDisconnect,            // 在电动汽车侧断开连接时停止充电事务
-    OCPP_CK_StopTransactionOnInvalidId,                   // 在无效 ID 时停止充电事务
-    OCPP_CK_StopTxnAlignedData,                           // 停止充电事务的对齐数据
-    OCPP_CK_StopTxnAlignedDataMaxLength,                  // 停止充电事务的对齐数据的最大长度
-    OCPP_CK_StopTxnSampledData,                           // 停止充电事务的采样数据
-    OCPP_CK_StopTxnSampledDataMaxLength,                  // 停止充电事务的采样数据的最大长度
-    OCPP_CK_SupportedFeatureProfiles,                     // 支持的功能配置文件
-    OCPP_CK_SupportedFeatureProfilesMaxLength,            // 支持的功能配置文件的最大长度
-    OCPP_CK_TransactionMessageAttempt,                    // 事务消息尝试次数
-    OCPP_CK_TransactionMessageRetryInterval,              // 事务消息重试间隔
-    OCPP_CK_UnlockConnectorOnEVSideDisconnect,            // 在电动汽车侧断开连接时解锁连接器
-    OCPP_CK_WebSocketPingInterval,                        // WebSocket 心跳间隔
-    
-    // Local Auth List Management Profile
-    OCPP_CK_LocalAuthListEnabled,                         // 是否启用本地身份验证列表
-    OCPP_CK_LocalAuthListMaxLength,                       // 本地身份验证列表的最大长度
-    OCPP_CK_SendLocalListMaxLength,                       // 发送本地列表的最大长度
-    
-    // Reservation Profile
-    OCPP_CK_ReserveConnectorZeroSupported,                // 是否支持预留编号为零的连接器
-    
-    // Smart Charging Profile
-    OCPP_CK_ChargeProfileMaxStackLevel,                   // 充电配置文件最大堆叠层数
-    OCPP_CK_ChargingScheduleAllowedChargingRateUnit,      // 充电计划允许的充电速率单位
-    OCPP_CK_ChargingScheduleMaxPeriods,                   // 充电计划允许的最大充电时段数
-    OCPP_CK_ConnectorSwitch3to1PhaseSupported,            // 是否支持将连接器从三相切换为单相
-    OCPP_CK_MaxChargingProfilesInstalled,                 // 支持的最大充电配置文件安装数量
-    
-    OCPP_CK_MAXLEN                                        // 配置项的数量
+enum OCPP_CONFIGURATION_KEY_E{
+    //Core Profile
+     OCPP_CK_AllowOfflineTxForUnknownId = 0,//如果此 key 存在，则充电点支持 Unknown Offline Authorization。如果此项报告的值为 true，则启用Unknown Offline Authorization
+     OCPP_CK_AuthorizationCacheEnabled,//如果此 key 存在，则充电点支持 Authorization Cache。如果此项报告的值为 true，则启用 Authorization Cache。
+     OCPP_CK_AuthorizeRemoteTxRequests,//是否应事先授权以 RemoteStartTransaction.req 消息的形式启动交易的远程请求，就像本地操作启动交易一样。
+     OCPP_CK_BlinkRepeat,//发出信号时充电点照明闪烁的次数
+     OCPP_CK_ClockAlignedDataInterval,//时钟对齐数据间隔的大小（以秒为单位）
+     OCPP_CK_ConnectionTimeOut,//将充电枪插入车辆，否则自动取消交易的超时时间
+     OCPP_CK_GetConfigurationMaxKeys,//ConnectorPhaseRotation 配置键中的最大项目数
+     OCPP_CK_HeartbeatInterval,//与中央系统处于非活动状态（无 OCPP 数据交换）的时间间隔，在此时间间隔之后，充电点应发送 Heartbeat.req PDU
+     OCPP_CK_LightIntensity,//充电点照明的亮度
+     OCPP_CK_LocalAuthorizeOffline,//充电点在 offline（离线） 时是否会启动本地授权标识符的交易
+     OCPP_CK_LocalPreAuthorize,//充电点在 online（联机）时是否会启动本地授权标识符的交易，而无需等待来自中央系统的 Authorize.conf 授权。
+     OCPP_CK_MaxEnergyOnInvalidId,//当标识符在交易开始后，中央系统失效时，以Wh 为单位的最大能量。
+     OCPP_CK_MeterValuesAlignedData,//当标识符在交易开始后，中央系统失效时，以Wh 为单位的最大能量。
+     OCPP_CK_MeterValuesAlignedDataMaxLength,//MeterValuesAlignedData 配置键中的最大项目数。
+     OCPP_CK_MeterValuesSampledData,//默认值 ："Energy.Active.Import.Register"
+     OCPP_CK_MeterValuesSampledDataMaxLength,//
+     OCPP_CK_MeterValueSampleInterval,
+     OCPP_CK_MinimumStatusDuration,
+     OCPP_CK_NumberOfConnectors,
+     OCPP_CK_ResetRetries,
+     OCPP_CK_ConnectorPhaseRotation,
+     OCPP_CK_ConnectorPhaseRotationMaxLength,
+     OCPP_CK_StopTransactionOnEVSideDisconnect,
+     OCPP_CK_StopTransactionOnInvalidId,
+     OCPP_CK_StopTxnAlignedData,
+     OCPP_CK_StopTxnAlignedDataMaxLength,
+     OCPP_CK_StopTxnSampledData,
+     OCPP_CK_StopTxnSampledDataMaxLength,
+     OCPP_CK_SupportedFeatureProfiles,
+     OCPP_CK_SupportedFeatureProfilesMaxLength,
+     OCPP_CK_TransactionMessageAttempt,
+     OCPP_CK_TransactionMessageRetryInterval,
+     OCPP_CK_UnlockConnectorOnEVSideDisconnect,
+     OCPP_CK_WebSocketPingInterval,
+     //Local Auth List Management Profile
+     OCPP_CK_LocalAuthListEnabled,
+     OCPP_CK_LocalAuthListMaxLength,
+     OCPP_CK_SendLocalListMaxLength,
+     //Reservation Profile
+     OCPP_CK_ReserveConnectorZeroSupported,
+     // Smart Charging Profil
+     OCPP_CK_ChargeProfileMaxStackLevel,
+     OCPP_CK_ChargingScheduleAllowedChargingRateUnit,
+     OCPP_CK_ChargingScheduleMaxPeriods,
+     OCPP_CK_ConnectorSwitch3to1PhaseSupported,
+     OCPP_CK_MaxChargingProfilesInstalled,
+     OCPP_CK_MAXLEN
 };
+
 
 
 static const char *ocpp_configurationKeyText[OCPP_CONFIGURATION_KEY_SIZE]={
@@ -118,8 +115,7 @@ static const char *ocpp_configurationKeyText[OCPP_CONFIGURATION_KEY_SIZE]={
         "MeterValuesAlignedDataMaxLength", 
         "MeterValuesSampledData", 
         "MeterValuesSampledDataMaxLength", 
-        "MeterValuesSampleInterval",
-
+        "MeterValueSampleInterval",
 		"MinimumStatusDuration",
 		"NumberOfConnectors",
         "ResetRetries",
@@ -151,32 +147,28 @@ static const char *ocpp_configurationKeyText[OCPP_CONFIGURATION_KEY_SIZE]={
         "MaxChargingProfilesInstalled"
 };
 
+
 typedef struct{
+    char key[64];
     bool isUsed;                                                
     enum OCPP_ACCESSIBILITY_TYPE_E accessibility; 
     enum OCPP_CONFIGURATION_KEY_DATA_TYPE_E dataType;
     union{
         bool boolData;
         int  intData;
-        char * stringData;
+        char stringData[OCPP_CONFIGURATION_VALUES_STRING_MAX];;
     }type;
     
 }OCPP_ConfigurationKey_t;
 
-
-
-static OCPP_ConfigurationKey_t OCPP_ConfigurationKey[OCPP_CONFIGURATION_KEY_SIZE];
-
-
-bool ocpp_ConfigurationKey_isFound(const char * key);
-bool ocpp_ConfigurationKey_isUse(const char * key);
-enum OCPP_ACCESSIBILITY_TYPE_E ocpp_ConfigurationKey_getAcc(const char * key);
-enum OCPP_CONFIGURATION_KEY_DATA_TYPE_E ocpp_ConfigurationKey_getType(const char * key);
-enum OCPP_CONFIGURATION_KEY_DATA_TYPE_E ocpp_ConfigurationKey_getValue(const char * key,void * value);
-int ocpp_ConfigurationKey_Modify(const char * key,char * value,int isUse);
+bool ocpp_ConfigurationKey_isFound(const char *key);
+int ocpp_ConfigurationKey_getValue(const char *key, void *value);
+int ocpp_ConfigurationKey_getIsUse(const char *key);
+int ocpp_ConfigurationKey_getAcc(const char *key);
+int ocpp_ConfigurationKey_getType(const char *key);
+int ocpp_ConfigurationKey_Modify(const char *key, const char *value, int isUse);
 int ocpp_ConfigurationKey_init(sqlite3 *ocpp_db);
 void ocpp_ConfigurationKey_deinit(void);
-
 
 
 #ifdef __cplusplus

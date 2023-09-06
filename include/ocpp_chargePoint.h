@@ -218,12 +218,7 @@ bool ocpp_chargePoint_getConnectStatus();
 void ocpp_chargePoint_setReConnect();
 void ocpp_chargePoint_init(ocpp_chargePoint_t * pile);
 
-char * ocpp_chargePoint_sendMeterValues(int connector, int transactionId);
-char * ocpp_chargePoint_sendStartTransaction(int connector, const char * idTag, int reservationId);
-char * ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char * idTag, int transactionId, enum OCPP_PACKAGE_STOP_REASON_E reason);
-char * ocpp_transaction_sendStopTransaction_Complex(int connector, const char * idTag, int transactionId, enum OCPP_PACKAGE_STOP_REASON_E reason);
-char * ocpp_chargePoint_sendAuthorize_req(const char * const idTag);
-enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E ocpp_chargePoint_authorizationOfIdentifier(const char * const idTag, char ** uniqueId);
+enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E ocpp_chargePoint_authorizationOfIdentifier(const char * const idTag, char * uniqueId);
 void ocpp_chargePoint_Authorization_IdTag(int connector, const char * idTag);
 
 

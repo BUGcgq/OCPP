@@ -1,117 +1,154 @@
-/*
- * @Author: LIYAOHAN liyaohan@increase.com
- * @Date: 2023-04-08 10:37:48
- * @LastEditors: LIYAOHAN 1791002655@qq.com
- * @LastEditTime: 2023-05-05 19:06:40
- * @FilePath: \功能模块\OCPP\ocpp_package.c
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
-
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "ocpp_log.h"
 #include "ocpp_package.h"
 #include <json-c/json.h>
-
+#include "ocpp_order.h"
+#include "ocpp_chargePoint.h"
+extern ocpp_chargePoint_t *ocpp_chargePoint;
 /**
  * @description: 创建Authorize.req消息
  * @param:
  * @return:
  */
-char *ocpp_package_prepare_Authorize_Request(const char *UniqueId, ocpp_package_Authorize_req_t *Authorize)
+int ocpp_chargePoint_sendAuthorize_req(const char *const idTag, char *lastUniqueId)
 {
-    if (UniqueId == NULL || Authorize == NULL)
-    {
-        return NULL;
-    }
-
+    char *unique = ocpp_AuxiliaryTool_GenerateUUID();
+    strncpy(lastUniqueId, unique, 37);
     struct json_object *root_object = json_object_new_array();
 
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(unique));
     json_object_array_add(root_object, json_object_new_string("Authorize"));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "idTag", json_object_new_string(Authorize->idTag));
+    json_object_object_add(payload_object, "idTag", json_object_new_string(idTag));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
 
-    json_object_put(root_object);
+    enqueueSendMessage(unique, json_string, OCPP_PACKAGE_AUTHORIZE);
+    if (unique)
+    {
+        free(unique);
+    }
+    if (root_object)
+    {
+        json_object_put(root_object);
+    }
 
-    return message;
+    return 0;
 }
 
 /**
- * @description: 创建BootNotification.req消息
+ * @description:
  * @param:
  * @return:
  */
-char *ocpp_package_prepare_BootNotification_Request(const char *UniqueId, ocpp_package_BootNotification_req_t *BootNotification)
+int ocpp_chargePoint_sendBootNotification_req()
 {
-    if (UniqueId == NULL || BootNotification == NULL)
-    {
-        return NULL;
-    }
-
+    char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
     struct json_object *root_object = json_object_new_array();
 
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
     json_object_array_add(root_object, json_object_new_string("BootNotification"));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "chargePointModel", json_object_new_string(BootNotification->chargePointModel));
 
-    if (BootNotification->chargeBoxSerialNumberIsUse)
+    ocpp_package_BootNotification_req_t bootNotification;
+    memset(&bootNotification, 0, sizeof(bootNotification));
+
+    bootNotification.chargeBoxSerialNumberIsUse = 1;
+    if (ocpp_chargePoint->getChargeBoxSerialNumber(bootNotification.chargeBoxSerialNumber, 25) == false)
+        memset(bootNotification.chargeBoxSerialNumber, 0, 25);
+
+    if (ocpp_chargePoint->getChargePointModel(bootNotification.chargePointModel, 20) == false)
+        memset(bootNotification.chargePointModel, 0, 20);
+
+    bootNotification.chargePointSerialNumberIsUse = 1;
+    if (ocpp_chargePoint->getChargePointSerialNumber(bootNotification.chargePointSerialNumber, 25) == false)
+        memset(bootNotification.chargePointSerialNumber, 0, 25);
+
+    if (ocpp_chargePoint->getChargePointVendor(bootNotification.chargePointVendor, 20) == false)
+        memset(bootNotification.chargePointVendor, 0, 20);
+
+    bootNotification.firmwareVersionIsUse = 1;
+    if (ocpp_chargePoint->getFirmwareVersion(bootNotification.firmwareVersion, 50) == false)
+        memset(bootNotification.firmwareVersion, 0, 50);
+
+    bootNotification.iccidIsUse = 1;
+    if (ocpp_chargePoint->getIccid(bootNotification.iccid, 20) == false)
+        memset(bootNotification.iccid, 0, 20);
+
+    bootNotification.imsiIsUse = 1;
+    if (ocpp_chargePoint->getImsi(bootNotification.imsi, 20) == false)
+        memset(bootNotification.imsi, 0, 20);
+
+    bootNotification.meterSerialNumberIsUse = 1;
+    if (ocpp_chargePoint->getMeterSerialNumber(bootNotification.meterSerialNumber, 25) == false)
+        memset(bootNotification.meterSerialNumber, 0, 25);
+
+    bootNotification.meterTypeIsUse = 1;
+    if (ocpp_chargePoint->getMeterType(bootNotification.meterType, 25) == false)
+        memset(bootNotification.meterType, 0, 25);
+
+    json_object_object_add(payload_object, "chargePointModel", json_object_new_string(bootNotification.chargePointModel));
+    if (bootNotification.chargeBoxSerialNumberIsUse)
     {
-        json_object_object_add(payload_object, "chargeBoxSerialNumber", json_object_new_string(BootNotification->chargeBoxSerialNumber));
+        json_object_object_add(payload_object, "chargeBoxSerialNumber", json_object_new_string(bootNotification.chargeBoxSerialNumber));
     }
 
-    if (BootNotification->chargePointSerialNumberIsUse)
+    if (bootNotification.chargePointSerialNumberIsUse)
     {
-        json_object_object_add(payload_object, "chargePointSerialNumber", json_object_new_string(BootNotification->chargePointSerialNumber));
+        json_object_object_add(payload_object, "chargePointSerialNumber", json_object_new_string(bootNotification.chargePointSerialNumber));
     }
 
-    json_object_object_add(payload_object, "chargePointVendor", json_object_new_string(BootNotification->chargePointVendor));
+    json_object_object_add(payload_object, "chargePointVendor", json_object_new_string(bootNotification.chargePointVendor));
 
-    if (BootNotification->firmwareVersionIsUse)
+    if (bootNotification.firmwareVersionIsUse)
     {
-        json_object_object_add(payload_object, "firmwareVersion", json_object_new_string(BootNotification->firmwareVersion));
+        json_object_object_add(payload_object, "firmwareVersion", json_object_new_string(bootNotification.firmwareVersion));
     }
 
-    if (BootNotification->iccidIsUse)
+    if (bootNotification.iccidIsUse)
     {
-        json_object_object_add(payload_object, "iccid", json_object_new_string(BootNotification->iccid));
+        json_object_object_add(payload_object, "iccid", json_object_new_string(bootNotification.iccid));
     }
 
-    if (BootNotification->imsiIsUse)
+    if (bootNotification.imsiIsUse)
     {
-        json_object_object_add(payload_object, "imsi", json_object_new_string(BootNotification->imsi));
+        json_object_object_add(payload_object, "imsi", json_object_new_string(bootNotification.imsi));
     }
 
-    if (BootNotification->meterSerialNumberIsUse)
+    if (bootNotification.meterSerialNumberIsUse)
     {
-        json_object_object_add(payload_object, "meterSerialNumber", json_object_new_string(BootNotification->meterSerialNumber));
+        json_object_object_add(payload_object, "meterSerialNumber", json_object_new_string(bootNotification.meterSerialNumber));
     }
 
-    if (BootNotification->meterTypeIsUse)
+    if (bootNotification.meterTypeIsUse)
     {
-        json_object_object_add(payload_object, "meterType", json_object_new_string(BootNotification->meterType));
+        json_object_object_add(payload_object, "meterType", json_object_new_string(bootNotification.meterType));
     }
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
 
-    json_object_put(root_object);
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_BOOT_NOTIFICATION);
 
-    return message;
+    if (root_object)
+    {
+        json_object_put(root_object);
+    }
+    if (uniqueId)
+    {
+        free(uniqueId);
+    }
+
+    return 0;
 }
 
 /**
@@ -159,29 +196,35 @@ char *ocpp_package_prepare_DataTransfer_Request(const char *UniqueId, ocpp_packa
  * @param:
  * @return:
  */
-char *ocpp_package_prepare_DiagnosticsStatusNotification_Request(const char *UniqueId, ocpp_package_DiagnosticsStatusNotification_req_t *DiagnosticsStatusNotification)
+int ocpp_chargePoint_sendDiagnosticsStatusNotification_Req()
 {
-    if (UniqueId == NULL || DiagnosticsStatusNotification == NULL)
-    {
-        return NULL;
-    }
+
+    char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
     struct json_object *root_object = json_object_new_array();
 
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
     json_object_array_add(root_object, json_object_new_string("DiagnosticsStatusNotification"));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_DiagnosticsStatus_text[DiagnosticsStatusNotification->status]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_DiagnosticsStatus_text[ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus]));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
 
     json_object_put(root_object);
 
-    return message;
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_DIAGNOSTICS_STATUS_NOTIFICATION);
+    if (root_object)
+    {
+        json_object_put(root_object);
+    }
+    if (uniqueId)
+    {
+        free(uniqueId);
+    }
+    return NULL;
 }
 
 /**
@@ -189,166 +232,408 @@ char *ocpp_package_prepare_DiagnosticsStatusNotification_Request(const char *Uni
  * @param:
  * @return:
  */
-char *ocpp_package_prepare_FirmwareStatusNotification_Request(const char *UniqueId, ocpp_package_FirmwareStatusNotification_req_t *FirmwareStatusNotification)
+int ocpp_chargePoint_sendFirmwareStatusNotification_Req()
 {
-    if (UniqueId == NULL || FirmwareStatusNotification == NULL)
-    {
-        return NULL;
-    }
+
+    char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
     struct json_object *root_object = json_object_new_array();
 
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE)); // OCPP_PACKAGE_CALL_MESSAGE
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
-    json_object_array_add(root_object, json_object_new_string("DiagnosticsStatusNotification"));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
+    json_object_array_add(root_object, json_object_new_string("FirmwareStatusNotification"));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_FirmwareStatus[FirmwareStatusNotification->status]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_FirmwareStatus[ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState]));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
 
     json_object_put(root_object);
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_FIRMWARE_STATUS_NOTIFICATION);
+    if (root_object)
+    {
+        json_object_put(root_object);
+    }
+    if (uniqueId)
+    {
+        free(uniqueId);
+    }
 
-    return message;
+    return 0;
 }
 
 /**
- * @description: 创建 Heartbeat.req消息
+ * @description:
  * @param:
  * @return:
  */
-char *ocpp_package_prepare_Heartbeat_Request(const char *UniqueId, ocpp_package_Heartbeat_req_t *Heartbeat)
+int ocpp_chargePoint_sendHeartbeat_Req()
 {
-    if (UniqueId == NULL || Heartbeat == NULL)
-    {
-        return NULL;
-    }
+    char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
     struct json_object *root_object = json_object_new_array();
 
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
     json_object_array_add(root_object, json_object_new_string("Heartbeat"));
 
     // 添加空对象{}，即使没有附带额外数据
     struct json_object *empty_object = json_object_new_object();
     json_object_array_add(root_object, empty_object);
-
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_HEARTBEAT);
 
-    json_object_put(root_object);
-    return message;
+    if (uniqueId)
+    {
+        free(uniqueId);
+    }
+    if (root_object)
+    {
+        json_object_put(root_object);
+    }
+
+    return 0;
 }
 
 /**
- * @description: 创建 MeterValues.req消息
- * @param:
- * @return:
+ * @description:
+ * @param {ocpp_chargePoint_t} *ocpp_chargePoint
+ * @param {int} connector
+ * @param {int} transactionId
+ * @return {*}
  */
-char *ocpp_package_prepare_MeterValues_Request(const char *UniqueId, ocpp_package_MeterValues_req_t *MeterValues)
+int ocpp_chargePoint_sendMeterValues(int connector, int transactionId)
 {
-    if (UniqueId == NULL || MeterValues == NULL)
+
+    char MeterValuesSampledData[512];
+    int MeterValuesSampledDataCnt = 0;
+    ocpp_ConfigurationKey_getValue("MeterValuesSampledData", (void *)MeterValuesSampledData);
+    int i = 0;
+    if (MeterValuesSampledData != NULL)
     {
-        return NULL;
+        char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
+        MeterValuesSampledDataCnt = ocpp_AuxiliaryTool_charCounter(MeterValuesSampledData, ':') + 1;
+        ocpp_package_MeterValues_M_SampledValue sampledValue[MeterValuesSampledDataCnt];
+        char *token = strtok(MeterValuesSampledData, ":");
+        char *timestamp = ocpp_AuxiliaryTool_GetCurrentTime();
+        struct json_object *root_object = json_object_new_array();
+
+        json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
+        json_object_array_add(root_object, json_object_new_string(uniqueId));
+        json_object_array_add(root_object, json_object_new_string("MeterValues"));
+
+        struct json_object *payload_object = json_object_new_object();
+        json_object_object_add(payload_object, "connectorId", json_object_new_int(connector));
+
+        json_object_object_add(payload_object, "transactionId", json_object_new_int(transactionId));
+
+        struct json_object *meterValue_array = json_object_new_array();
+        struct json_object *meterValue_object = json_object_new_object();
+
+        json_object_object_add(meterValue_object, "timestamp", json_object_new_string(timestamp));
+
+        struct json_object *sampledValue_array = json_object_new_array();
+        while (token != NULL)
+        {
+            sampledValue[i].contextIsUse = 1;
+            sampledValue[i].formatIsUse = 1;
+            sampledValue[i].locationIsUse = 1;
+            sampledValue[i].measurandIsUse = 1;
+            sampledValue[i].phaseIsUse = 0;
+            sampledValue[i].unitIsUse = 1;
+            if (strcmp(token, "Voltage") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_V]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getVoltage(connector));
+            }
+            else if (strcmp(token, "Temperature") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_T]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_CELSIUS]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getTemperature(connector));
+            }
+            else if (strcmp(token, "SoC") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_S]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_PERCENT]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getSOC(connector));
+            }
+            else if (strcmp(token, "RPM") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_R]);
+                sampledValue[i].unitIsUse = 0;
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getRPM(connector));
+            }
+            else if (strcmp(token, "Power.Reactive.Import") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PRI]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_KVAR]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerActiveImport(connector));
+            }
+            else if (strcmp(token, "Power.Reactive.Export") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PRE]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_KVAR]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerActiveExport(connector));
+            }
+            else if (strcmp(token, "Power.Offered") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PO]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%s", ocpp_chargePoint->getPowerOffered(connector));
+            }
+            else if (strcmp(token, "Power.Factor") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PAI]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PO]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerOffered(connector));
+            }
+            else if (strcmp(token, "Power.Active.Import") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PAI]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerFactor(connector));
+            }
+            else if (strcmp(token, "Power.Active.Export") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PAE]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerActiveExport(connector));
+            }
+
+            else if (strcmp(token, "Frequency") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_F]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getFrequency(connector));
+            }
+            else if (strcmp(token, "Energy.Reactive.Export.Interval") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_EREI]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyReactiveExportInterval(connector));
+            }
+            else if (strcmp(token, "Energy.Reactive.Import.Interval") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_ERII]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyReactiveImportInterval(connector));
+            }
+            else if (strcmp(token, "Energy.Active.Import.Interval") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_EAII]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyActiveImportInterval(connector));
+            }
+            else if (strcmp(token, "Energy.Active.Export.Interval") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_EAEI]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyActiveExportInterval(connector));
+            }
+            else if (strcmp(token, "Energy.Reactive.Import.Register") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_ERIR]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_WH]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyReactiveImportRegister(connector));
+            }
+            else if (strcmp(token, "Energy.Reactive.Export.Register") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_ERER]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyReactiveExportRegister(connector));
+            }
+            else if (strcmp(token, "Energy.Active.Import.Register") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_EAIR]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_WH]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyActiveImportRegister(connector));
+            }
+            else if (strcmp(token, "Energy.Active.Export.Register") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_EAER]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyActiveExportRegister(connector));
+            }
+            else if (strcmp(token, "Current.Offered") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_CO]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_A]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getCurrentOffered(connector));
+            }
+            else if (strcmp(token, "Current.Import") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_CO]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_A]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getCurrentImport(connector));
+            }
+            else if (strcmp(token, "Current.Export") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_CE]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getCurrentExport(connector));
+            }
+            struct json_object *sampledValue_object = json_object_new_object();
+            json_object_object_add(sampledValue_object, "value", json_object_new_string(sampledValue[i].value));
+            if (sampledValue[i].contextIsUse)
+                json_object_object_add(sampledValue_object, "context", json_object_new_string(sampledValue[i].context));
+
+            if (sampledValue[i].formatIsUse)
+                json_object_object_add(sampledValue_object, "format", json_object_new_string(sampledValue[i].format));
+
+            if (sampledValue[i].measurandIsUse)
+                json_object_object_add(sampledValue_object, "measurand", json_object_new_string(sampledValue[i].measurand));
+
+            if (sampledValue[i].phaseIsUse)
+                json_object_object_add(sampledValue_object, "phase", json_object_new_string(sampledValue[i].phase));
+
+            if (sampledValue[i].locationIsUse)
+                json_object_object_add(sampledValue_object, "location", json_object_new_string(sampledValue[i].location));
+
+            if (sampledValue[i].unitIsUse)
+                json_object_object_add(sampledValue_object, "unit", json_object_new_string(sampledValue[i].unit));
+
+            json_object_array_add(sampledValue_array, sampledValue_object);
+            token = strtok(NULL, ":");
+            i++;
+        }
+        json_object_object_add(meterValue_object, "sampledValue", sampledValue_array);
+        json_object_array_add(meterValue_array, meterValue_object);
+        json_object_object_add(payload_object, "meterValue", meterValue_array);
+        json_object_array_add(root_object, payload_object);
+        const char *json_string = json_object_to_json_string(root_object);
+
+        enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_METERVALUES);
+        if (uniqueId)
+        {
+            free(uniqueId);
+        }
+        if (timestamp)
+        {
+            free(timestamp);
+        }
+        if (root_object)
+        {
+            json_object_put(root_object);
+        }
     }
-    struct json_object *root_object = json_object_new_array();
 
-    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
-    json_object_array_add(root_object, json_object_new_string("MeterValues"));
-
-    struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "connectorId", json_object_new_int(MeterValues->connectorId));
-
-    if (MeterValues->transactionIdIsUse)
-        json_object_object_add(payload_object, "transactionId", json_object_new_int(MeterValues->transactionId));
-
-    struct json_object *meterValue_array = json_object_new_array();
-    struct json_object *meterValue_object = json_object_new_object();
-
-    json_object_object_add(meterValue_object, "timestamp", json_object_new_string(MeterValues->meterValue.timestamp));
-
-    struct json_object *sampledValue_array = json_object_new_array();
-    int i;
-    for (i = 0; i < MeterValues->meterValue.sampledValueCnt; i++)
-    {
-        struct json_object *sampledValue_object = json_object_new_object();
-        json_object_object_add(sampledValue_object, "value", json_object_new_string(MeterValues->meterValue.sampledValue[i]->value));
-
-        if (MeterValues->meterValue.sampledValue[i]->contextIsUse)
-            json_object_object_add(sampledValue_object, "context", json_object_new_string(ocpp_package_MeterValues_MS_context_text[MeterValues->meterValue.sampledValue[i]->context]));
-
-        if (MeterValues->meterValue.sampledValue[i]->formatIsUse)
-            json_object_object_add(sampledValue_object, "format", json_object_new_string(ocpp_package_MeterValues_MS_format_text[MeterValues->meterValue.sampledValue[i]->format]));
-
-        if (MeterValues->meterValue.sampledValue[i]->measurandIsUse)
-            json_object_object_add(sampledValue_object, "measurand", json_object_new_string(ocpp_package_MeterValues_MS_measurand_text[MeterValues->meterValue.sampledValue[i]->measurand]));
-
-        if (MeterValues->meterValue.sampledValue[i]->phaseIsUse)
-            json_object_object_add(sampledValue_object, "phase", json_object_new_string(ocpp_package_MeterValues_MS_phase_text[MeterValues->meterValue.sampledValue[i]->phase]));
-
-        if (MeterValues->meterValue.sampledValue[i]->locationIsUse)
-            json_object_object_add(sampledValue_object, "location", json_object_new_string(ocpp_package_MeterValues_MS_location_text[MeterValues->meterValue.sampledValue[i]->location]));
-
-        if (MeterValues->meterValue.sampledValue[i]->unitIsUse)
-            json_object_object_add(sampledValue_object, "unit", json_object_new_string(ocpp_package_MeterValues_MS_unit_text[MeterValues->meterValue.sampledValue[i]->unit]));
-
-        json_object_array_add(sampledValue_array, sampledValue_object);
-    }
-
-    json_object_object_add(meterValue_object, "sampledValue", sampledValue_array);
-    json_object_array_add(meterValue_array, meterValue_object);
-    json_object_object_add(payload_object, "meterValue", meterValue_array);
-
-    json_object_array_add(root_object, payload_object);
-
-    const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
-
-    json_object_put(root_object);
-
-    return message;
+    return 0;
 }
 
 /**
- * @description: 创建 StartTransaction.req消息
+ * @description:
  * @param:
  * @return:
  */
-char *ocpp_package_prepare_StartTransaction_Request(const char *UniqueId, ocpp_package_StartTransaction_req_t *StartTransaction)
+int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *lastUniqueId)
 {
-    if (UniqueId == NULL || StartTransaction == NULL)
+    char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
+    if (uniqueId != NULL)
     {
-        return NULL;
+        strncpy(lastUniqueId, uniqueId, 40);
     }
+
+    char *timestamp = ocpp_AuxiliaryTool_GetCurrentTime();
+    int metervalue = (int)ocpp_chargePoint->getCurrentMeterValues(connector);
     struct json_object *root_object = json_object_new_array();
 
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
     json_object_array_add(root_object, json_object_new_string("StartTransaction"));
-
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "connectorId", json_object_new_int(StartTransaction->connectorId));
-    json_object_object_add(payload_object, "idTag", json_object_new_string(StartTransaction->idTag));
-    json_object_object_add(payload_object, "meterStart", json_object_new_int(StartTransaction->meterStart));
-
-    if (StartTransaction->reservationIdIsUse)
+    json_object_object_add(payload_object, "connectorId", json_object_new_int(connector));
+    json_object_object_add(payload_object, "idTag", json_object_new_string(idTag));
+    json_object_object_add(payload_object, "meterStart", json_object_new_int((metervalue)));
+    if (reservationId > 0)
     {
-        json_object_object_add(payload_object, "reservationId", json_object_new_int(StartTransaction->reservationId));
+        json_object_object_add(payload_object, "reservationId", json_object_new_int(reservationId));
+    }
+    json_object_object_add(payload_object, "timestamp", json_object_new_string(timestamp));
+    json_object_array_add(root_object, payload_object);
+    const char *json_string = json_object_to_json_string(root_object);
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_STARTTRANSACTION);
+    if (uniqueId)
+    {
+        free(uniqueId);
+    }
+    if (timestamp)
+    {
+        free(timestamp);
+    }
+    if (root_object)
+    {
+        free(root_object);
     }
 
-    json_object_object_add(payload_object, "timestamp", json_object_new_string(StartTransaction->timestamp));
-
-    json_object_array_add(root_object, payload_object);
-
-    const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
-
-    json_object_put(root_object);
-
-    return message;
+    return 0;
 }
 
 /**
@@ -356,103 +641,386 @@ char *ocpp_package_prepare_StartTransaction_Request(const char *UniqueId, ocpp_p
  * @param:
  * @return:
  */
-char *ocpp_package_prepare_StatusNotification_Request(const char *UniqueId, ocpp_package_StatusNotification_req_t *StatusNotification)
+int ocpp_chargePoint_sendStatusNotification_Req(int connector)
 {
-    if (UniqueId == NULL || StatusNotification == NULL)
-    {
-        return NULL;
-    }
+
+    char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
     struct json_object *root_object = json_object_new_array();
 
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
     json_object_array_add(root_object, json_object_new_string("StatusNotification"));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "connectorId", json_object_new_int(StatusNotification->connectorId));
-    json_object_object_add(payload_object, "errorCode", json_object_new_string(ocpp_package_ChargePointErrorCode_text[StatusNotification->errorCode]));
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_ChargePointStatus_text[StatusNotification->status]));
+    json_object_object_add(payload_object, "connectorId", json_object_new_int(connector));
+    json_object_object_add(payload_object, "errorCode", json_object_new_string(ocpp_package_ChargePointErrorCode_text[ocpp_chargePoint->connector[connector]->errorCode]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_ChargePointStatus_text[ocpp_chargePoint->connector[connector]->status]));
 
-    if (StatusNotification->timestampIsUse)
-        json_object_object_add(payload_object, "timestamp", json_object_new_string(StatusNotification->timestamp));
+    if (ocpp_chargePoint->connector[connector]->timestampIsUse)
+        json_object_object_add(payload_object, "timestamp", json_object_new_string(ocpp_chargePoint->connector[connector]->timestamp));
 
-    if (StatusNotification->infoIsUse)
-        json_object_object_add(payload_object, "info", json_object_new_string(StatusNotification->info));
+    if (ocpp_chargePoint->connector[connector]->infoIsUse)
+        json_object_object_add(payload_object, "info", json_object_new_string(ocpp_chargePoint->connector[connector]->info));
 
-    if (StatusNotification->vendorIdIsUse)
-        json_object_object_add(payload_object, "vendorId", json_object_new_string(StatusNotification->vendorId));
+    if (ocpp_chargePoint->connector[connector]->vendorIdIsUse)
+        json_object_object_add(payload_object, "vendorId", json_object_new_string(ocpp_chargePoint->connector[connector]->vendorId));
 
-    if (StatusNotification->vendorErrorCodeIsUse)
-        json_object_object_add(payload_object, "vendorErrorCode", json_object_new_string(StatusNotification->vendorErrorCode));
+    if (ocpp_chargePoint->connector[connector]->vendorErrorCodeIsUse)
+        json_object_object_add(payload_object, "vendorErrorCode", json_object_new_string(ocpp_chargePoint->connector[connector]->vendorErrorCode));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
 
-    json_object_put(root_object);
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_STATUS_NOTIFICATION);
 
-    return message;
-}
-
-/**
- * @description: 创建StopTransaction.req消息
- * @param:
- * @return:
- */
-char *ocpp_package_prepare_StopTransaction_Request(const char *UniqueId, ocpp_package_StopTransaction_req_t *StopTransaction)
-{
-    if (UniqueId == NULL || StopTransaction == NULL)
+    if (root_object)
     {
-        return NULL;
+        json_object_put(root_object);
     }
+    if (uniqueId)
+    {
+        free(uniqueId);
+    }
+    return 0;
+}
+int ocpp_chargePoint_sendFinishing_Req(int connector)
+{
+    char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
     struct json_object *root_object = json_object_new_array();
 
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
+    json_object_array_add(root_object, json_object_new_string("StatusNotification"));
+
+    struct json_object *payload_object = json_object_new_object();
+    json_object_object_add(payload_object, "connectorId", json_object_new_int(connector));
+    json_object_object_add(payload_object, "errorCode", json_object_new_string(ocpp_package_ChargePointErrorCode_text[ocpp_chargePoint->connector[connector]->errorCode]));
+    json_object_object_add(payload_object, "status", json_object_new_string("Finishing"));
+
+    if (ocpp_chargePoint->connector[connector]->timestampIsUse)
+        json_object_object_add(payload_object, "timestamp", json_object_new_string(ocpp_chargePoint->connector[connector]->timestamp));
+
+    if (ocpp_chargePoint->connector[connector]->infoIsUse)
+        json_object_object_add(payload_object, "info", json_object_new_string(ocpp_chargePoint->connector[connector]->info));
+
+    if (ocpp_chargePoint->connector[connector]->vendorIdIsUse)
+        json_object_object_add(payload_object, "vendorId", json_object_new_string(ocpp_chargePoint->connector[connector]->vendorId));
+
+    if (ocpp_chargePoint->connector[connector]->vendorErrorCodeIsUse)
+        json_object_object_add(payload_object, "vendorErrorCode", json_object_new_string(ocpp_chargePoint->connector[connector]->vendorErrorCode));
+
+    json_object_array_add(root_object, payload_object);
+
+    const char *json_string = json_object_to_json_string(root_object);
+
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_STATUS_NOTIFICATION);
+
+    if (root_object)
+    {
+        json_object_put(root_object);
+    }
+    if (uniqueId)
+    {
+        free(uniqueId);
+    }
+    return 0;
+}
+/**
+ * @description:
+ * @param:
+ * @return:
+ */
+int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *idTag, int transactionId, const char *lastUniqueId, enum OCPP_PACKAGE_STOP_REASON_E reason)
+{
+
+    char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
+    if (lastUniqueId != NULL)
+    {
+        strncpy(lastUniqueId, uniqueId, 40);
+    }
+    const char *transactionDataStr = NULL;
+    int meterStop = (int)ocpp_chargePoint->getCurrentMeterValues(connector);
+    char *timestamp = ocpp_AuxiliaryTool_GetCurrentTime();
+    struct json_object *root_object = json_object_new_array();
+
+    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
     json_object_array_add(root_object, json_object_new_string("StopTransaction"));
 
     struct json_object *payload_object = json_object_new_object();
 
-    json_object_object_add(payload_object, "transactionId", json_object_new_int(StopTransaction->transactionId));
-    json_object_object_add(payload_object, "idTag", json_object_new_string(StopTransaction->idTag));
-    json_object_object_add(payload_object, "timestamp", json_object_new_string(StopTransaction->timestamp));
-    json_object_object_add(payload_object, "meterStop", json_object_new_int(StopTransaction->meterStop));
-
-    if (StopTransaction->reasonIsUse)
-        json_object_object_add(payload_object, "reason", json_object_new_string(ocpp_package_stop_reason_text[StopTransaction->reasonIsUse]));
-
-    if (StopTransaction->transactionDataIsUse)
+    json_object_object_add(payload_object, "transactionId", json_object_new_int(transactionId));
+    json_object_object_add(payload_object, "idTag", json_object_new_string(idTag));
+    json_object_object_add(payload_object, "timestamp", json_object_new_string(timestamp));
+    json_object_object_add(payload_object, "meterStop", json_object_new_int(meterStop));
+    json_object_object_add(payload_object, "reason", json_object_new_string(ocpp_package_stop_reason_text[reason]));
+    int ret = ocpp_ConfigurationKey_getIsUse("StopTxnSampledData");
+    if (ret == 1)
     {
-        struct json_object *transactionData_array = json_object_new_array();
-        struct json_object *transactionData_object = json_object_new_object();
+        json_object *transactionData_array = json_object_new_array();
+        json_object *transactionData_obj = json_object_new_object();
+        json_object_object_add(transactionData_obj, "timestamp", json_object_new_string(timestamp));
+        // 创建嵌套的 JSON 数组
+        json_object *values_array = json_object_new_array();
 
-        json_object_object_add(transactionData_object, "timestamp", json_object_new_string(StopTransaction->transactionData.timestamp));
-
-        struct json_object *values_array = json_object_new_array();
-        int i;
-        for (i = 0; i < StopTransaction->transactionData.sampledValueCnt; i++)
+        char StopTxnSampledData[512];
+        int MeterValuesSampledDataCnt = 0;
+        int i = 0;
+        ocpp_ConfigurationKey_getValue("StopTxnSampledData", (void *)StopTxnSampledData);
+        MeterValuesSampledDataCnt = ocpp_AuxiliaryTool_charCounter(StopTxnSampledData, ':') + 1;
+        ocpp_package_MeterValues_M_SampledValue sampledValue[MeterValuesSampledDataCnt];
+        char *token = strtok(StopTxnSampledData, ":");
+        while (token != NULL)
         {
-            struct json_object *value_object = json_object_new_object();
-            json_object_object_add(value_object, "measurand", json_object_new_string(ocpp_package_MeterValues_MS_measurand_text[StopTransaction->transactionData.sampledValue[i]->measurand]));
-            json_object_object_add(value_object, "unit", json_object_new_string(ocpp_package_MeterValues_MS_unit_text[StopTransaction->transactionData.sampledValue[i]->unit]));
-            json_object_object_add(value_object, "value", json_object_new_string(StopTransaction->transactionData.sampledValue[i]->value));
-            json_object_array_add(values_array, value_object);
-        }
+            struct json_object *sampledValue_object = json_object_new_object();
+            sampledValue[i].contextIsUse = 1;
+            sampledValue[i].formatIsUse = 1;
+            sampledValue[i].locationIsUse = 1;
+            sampledValue[i].measurandIsUse = 1;
+            sampledValue[i].phaseIsUse = 0;
+            sampledValue[i].unitIsUse = 1;
+            if (strcmp(token, "Voltage") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_V]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getVoltage(connector));
+            }
+            else if (strcmp(token, "Temperature") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_T]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_CELSIUS]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getTemperature(connector));
+            }
+            else if (strcmp(token, "SoC") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_S]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_PERCENT]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getSOC(connector));
+            }
+            else if (strcmp(token, "RPM") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_R]);
+                sampledValue[i].unitIsUse = 0;
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getRPM(connector));
+            }
+            else if (strcmp(token, "Power.Reactive.Import") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PRI]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_KVAR]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerActiveImport(connector));
+            }
+            else if (strcmp(token, "Power.Reactive.Export") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PRE]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_KVAR]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerActiveExport(connector));
+            }
+            else if (strcmp(token, "Power.Offered") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PO]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%s", ocpp_chargePoint->getPowerOffered(connector));
+            }
+            else if (strcmp(token, "Power.Factor") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PAI]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PO]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerOffered(connector));
+            }
+            else if (strcmp(token, "Power.Active.Import") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PAI]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerFactor(connector));
+            }
+            else if (strcmp(token, "Power.Active.Export") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PAE]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerActiveExport(connector));
+            }
 
-        json_object_object_add(transactionData_object, "values", values_array);
-        json_object_array_add(transactionData_array, transactionData_object);
+            else if (strcmp(token, "Frequency") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_F]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getFrequency(connector));
+            }
+            else if (strcmp(token, "Energy.Reactive.Export.Interval") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_EREI]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyReactiveExportInterval(connector));
+            }
+            else if (strcmp(token, "Energy.Reactive.Import.Interval") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_ERII]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyReactiveImportInterval(connector));
+            }
+            else if (strcmp(token, "Energy.Active.Import.Interval") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_EAII]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyActiveImportInterval(connector));
+            }
+            else if (strcmp(token, "Energy.Active.Export.Interval") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_EAEI]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyActiveExportInterval(connector));
+            }
+            else if (strcmp(token, "Energy.Reactive.Import.Register") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_ERIR]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_WH]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyReactiveImportRegister(connector));
+            }
+            else if (strcmp(token, "Energy.Reactive.Export.Register") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_ERER]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyReactiveExportRegister(connector));
+            }
+            else if (strcmp(token, "Energy.Active.Import.Register") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_EAIR]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_WH]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyActiveImportRegister(connector));
+            }
+            else if (strcmp(token, "Energy.Active.Export.Register") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_EAER]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getEnergyActiveExportRegister(connector));
+            }
+            else if (strcmp(token, "Current.Offered") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_CO]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_A]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getCurrentOffered(connector));
+            }
+            else if (strcmp(token, "Current.Import") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_CO]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_A]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getCurrentImport(connector));
+            }
+            else if (strcmp(token, "Current.Export") == 0)
+            {
+                snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
+                snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
+                snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_CE]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getCurrentExport(connector));
+            }
+            json_object_object_add(sampledValue_object, "value", json_object_new_string(sampledValue[i].value));
+            if (sampledValue[i].contextIsUse)
+                json_object_object_add(sampledValue_object, "context", json_object_new_string(sampledValue[i].context));
+            if (sampledValue[i].formatIsUse)
+                json_object_object_add(sampledValue_object, "format", json_object_new_string(sampledValue[i].format));
+            if (sampledValue[i].measurandIsUse)
+                json_object_object_add(sampledValue_object, "measurand", json_object_new_string(sampledValue[i].measurand));
+            if (sampledValue[i].phaseIsUse)
+                json_object_object_add(sampledValue_object, "phase", json_object_new_string(sampledValue[i].phase));
+            if (sampledValue[i].locationIsUse)
+                json_object_object_add(sampledValue_object, "location", json_object_new_string(sampledValue[i].location));
+            if (sampledValue[i].unitIsUse)
+                json_object_object_add(sampledValue_object, "unit", json_object_new_string(sampledValue[i].unit));
+
+            json_object_array_add(values_array, sampledValue_object);
+            token = strtok(NULL, ":");
+            i++;
+        }
+        json_object_object_add(transactionData_obj, "sampledValue", values_array);
+        transactionDataStr = json_object_to_json_string(transactionData_obj);
+        json_object_array_add(transactionData_array, transactionData_obj);
         json_object_object_add(payload_object, "transactionData", transactionData_array);
     }
 
     json_object_array_add(root_object, payload_object);
-
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
-
-    json_object_put(root_object);
-
-    return message;
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_STOPTRANSACTION);
+    ocpp_StopTransaction_insert(transactionId, idTag, timestamp,
+                                meterStop, ocpp_package_stop_reason_text[reason], transactionDataStr, uniqueId);
+    if (root_object)
+    {
+        json_object_put(root_object);
+    }
+    if (uniqueId)
+    {
+        free(uniqueId);
+    }
+    if (timestamp)
+    {
+        free(timestamp);
+    }
+    return 0;
 }
 
 /**
@@ -478,7 +1046,6 @@ char *ocpp_package_prepare_CancelReservation_Response(const char *UniqueId, ocpp
     const char *json_string = json_object_to_json_string(root_object);
     char *message = strdup(json_string);
 
-    json_object_put(payload_object);
     json_object_put(root_object);
 
     return message;
@@ -507,7 +1074,6 @@ char *ocpp_package_prepare_ChangeAvailability_Response(const char *UniqueId, ocp
     const char *json_string = json_object_to_json_string(root_object);
     char *message = strdup(json_string);
 
-    json_object_put(payload_object);
     json_object_put(root_object);
 
     return message;
@@ -536,7 +1102,6 @@ char *ocpp_package_prepare_ChangeConfiguration_Response(const char *UniqueId, oc
     const char *json_string = json_object_to_json_string(root_object);
     char *message = strdup(json_string);
 
-    json_object_put(payload_object);
     json_object_put(root_object);
 
     return message;
@@ -565,7 +1130,6 @@ char *ocpp_package_prepare_ClearCache_Response(const char *UniqueId, ocpp_packag
     const char *json_string = json_object_to_json_string(root_object);
     char *message = strdup(json_string);
 
-    json_object_put(payload_object);
     json_object_put(root_object);
 
     return message;
@@ -594,7 +1158,6 @@ char *ocpp_package_prepare_ClearChargingProfile_Response(const char *UniqueId, o
     const char *json_string = json_object_to_json_string(root_object);
     char *message = strdup(json_string);
 
-    json_object_put(payload_object);
     json_object_put(root_object);
 
     return message;
@@ -633,34 +1196,34 @@ char *ocpp_package_prepare_DataTransfer_Response(const char *UniqueId, ocpp_pack
 
     return message;
 }
+
 /**
- * @description: 创建GetLocalListVersion.conf消息
- * @param:
- * @return:
+ * @description:
+ * @param {char *} uniqueId
+ * @param {ocpp_package_GetLocalListVersion_req_t} GetLocalListVersion
+ * @return {*}
  */
-char *ocpp_package_prepare_GetLocalListVersion_Response(const char *UniqueId, ocpp_package_GetLocalListVersion_conf_t *GetLocalListVersion)
+void ocpp_chargePoint_GetLocalListVersion_Req(const char *uniqueId, ocpp_package_GetLocalListVersion_req_t GetLocalListVersion_req)
 {
-    if (UniqueId == NULL || GetLocalListVersion == NULL)
-    {
-        return NULL;
-    }
     struct json_object *root_object = json_object_new_array();
+    if (root_object == NULL)
+    {
+        return;
+    }
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
 
     struct json_object *payload_object = json_object_new_object();
 
-    json_object_object_add(payload_object, "listVersion", json_object_new_int(GetLocalListVersion->listVersion));
+    json_object_object_add(payload_object, "listVersion", json_object_new_int(ocpp_localAuthorization_List_getListVersion("Version")));
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
+
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
 
     json_object_put(root_object);
-
-    return message;
 }
-
 /**
  * @description: 创建 GetCompositeSchedule.conf 消息
  * @param:
@@ -668,79 +1231,79 @@ char *ocpp_package_prepare_GetLocalListVersion_Response(const char *UniqueId, oc
  */
 char *ocpp_package_prepare_GetCompositeSchedule_Response(const char *UniqueId, ocpp_package_GetCompositeSchedule_conf_t *GetCompositeSchedule)
 {
-    if (UniqueId == NULL || GetCompositeSchedule == NULL)
-    {
-        return NULL;
-    }
-    struct json_object *root_object = json_object_new_array();
-    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    // if (UniqueId == NULL || GetCompositeSchedule == NULL)
+    // {
+    //     return NULL;
+    // }
+    // struct json_object *root_object = json_object_new_array();
+    // json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
+    // json_object_array_add(root_object, json_object_new_string(UniqueId));
 
-    struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_GetCompositeScheduleStatus_text[GetCompositeSchedule->status]));
+    // struct json_object *payload_object = json_object_new_object();
+    // json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_GetCompositeScheduleStatus_text[GetCompositeSchedule->status]));
 
-    if (GetCompositeSchedule->connectorIdIsUse)
-    {
-        json_object_object_add(payload_object, "connectorId", json_object_new_int(GetCompositeSchedule->connectorId));
-    }
+    // if (GetCompositeSchedule->connectorIdIsUse)
+    // {
+    //     json_object_object_add(payload_object, "connectorId", json_object_new_int(GetCompositeSchedule->connectorId));
+    // }
 
-    if (GetCompositeSchedule->scheduleStartIsUse)
-    {
-        json_object_object_add(payload_object, "scheduleStart", json_object_new_string(GetCompositeSchedule->scheduleStart));
-    }
+    // if (GetCompositeSchedule->scheduleStartIsUse)
+    // {
+    //     json_object_object_add(payload_object, "scheduleStart", json_object_new_string(GetCompositeSchedule->scheduleStart));
+    // }
 
-    if (GetCompositeSchedule->chargingScheduleIsUse)
-    {
-        struct json_object *chargingSchedule_object = json_object_new_object();
-        json_object_object_add(chargingSchedule_object, "chargingRateUnit", json_object_new_string(ocpp_package_ChargingRateUnitType_text[GetCompositeSchedule->chargingSchedule.chargingRateUnit]));
+    // if (GetCompositeSchedule->chargingScheduleIsUse)
+    // {
+    //     struct json_object *chargingSchedule_object = json_object_new_object();
+    //     json_object_object_add(chargingSchedule_object, "chargingRateUnit", json_object_new_string(ocpp_package_ChargingRateUnitType_text[GetCompositeSchedule->chargingSchedule.chargingRateUnit]));
 
-        if (GetCompositeSchedule->chargingSchedule.durationIsUse)
-        {
-            json_object_object_add(chargingSchedule_object, "duration", json_object_new_int(GetCompositeSchedule->chargingSchedule.duration));
-        }
+    //     if (GetCompositeSchedule->chargingSchedule.durationIsUse)
+    //     {
+    //         json_object_object_add(chargingSchedule_object, "duration", json_object_new_int(GetCompositeSchedule->chargingSchedule.duration));
+    //     }
 
-        if (GetCompositeSchedule->chargingSchedule.startScheduleIsUse)
-        {
-            json_object_object_add(chargingSchedule_object, "startSchedule", json_object_new_string(GetCompositeSchedule->chargingSchedule.startSchedule));
-        }
+    //     if (GetCompositeSchedule->chargingSchedule.startScheduleIsUse)
+    //     {
+    //         json_object_object_add(chargingSchedule_object, "startSchedule", json_object_new_string(GetCompositeSchedule->chargingSchedule.startSchedule));
+    //     }
 
-        if (GetCompositeSchedule->chargingSchedule.minChargingRateIsUse)
-        {
-            json_object_object_add(chargingSchedule_object, "minChargingRate", json_object_new_double(GetCompositeSchedule->chargingSchedule.minChargingRate));
-        }
+    //     if (GetCompositeSchedule->chargingSchedule.minChargingRateIsUse)
+    //     {
+    //         json_object_object_add(chargingSchedule_object, "minChargingRate", json_object_new_double(GetCompositeSchedule->chargingSchedule.minChargingRate));
+    //     }
 
-        if (GetCompositeSchedule->chargingSchedule.numberOfchargingSchedulePeriod > 0)
-        {
-            struct json_object *chargingSchedulePeriod_array = json_object_new_array();
-            int i;
-            for (i = 0; i < GetCompositeSchedule->chargingSchedule.numberOfchargingSchedulePeriod; i++)
-            {
-                struct json_object *chargingSchedulePeriod_object = json_object_new_object();
-                json_object_object_add(chargingSchedulePeriod_object, "startPeriod", json_object_new_int(GetCompositeSchedule->chargingSchedule.chargingSchedulePeriod[i]->startPeriod));
-                json_object_object_add(chargingSchedulePeriod_object, "limit", json_object_new_double(GetCompositeSchedule->chargingSchedule.chargingSchedulePeriod[i]->limit));
+    //     if (GetCompositeSchedule->chargingSchedule.numberOfchargingSchedulePeriod > 0)
+    //     {
+    //         struct json_object *chargingSchedulePeriod_array = json_object_new_array();
+    //         int i;
+    //         for (i = 0; i < GetCompositeSchedule->chargingSchedule.numberOfchargingSchedulePeriod; i++)
+    //         {
+    //             struct json_object *chargingSchedulePeriod_object = json_object_new_object();
+    //             json_object_object_add(chargingSchedulePeriod_object, "startPeriod", json_object_new_int(GetCompositeSchedule->chargingSchedule.chargingSchedulePeriod[i]->startPeriod));
+    //             json_object_object_add(chargingSchedulePeriod_object, "limit", json_object_new_double(GetCompositeSchedule->chargingSchedule.chargingSchedulePeriod[i]->limit));
 
-                if (GetCompositeSchedule->chargingSchedule.chargingSchedulePeriod[i]->numberPhasesIsUse)
-                {
-                    json_object_object_add(chargingSchedulePeriod_object, "numberPhases", json_object_new_int(GetCompositeSchedule->chargingSchedule.chargingSchedulePeriod[i]->numberPhases));
-                }
+    //             if (GetCompositeSchedule->chargingSchedule.chargingSchedulePeriod[i]->numberPhasesIsUse)
+    //             {
+    //                 json_object_object_add(chargingSchedulePeriod_object, "numberPhases", json_object_new_int(GetCompositeSchedule->chargingSchedule.chargingSchedulePeriod[i]->numberPhases));
+    //             }
 
-                json_object_array_add(chargingSchedulePeriod_array, chargingSchedulePeriod_object);
-            }
+    //             json_object_array_add(chargingSchedulePeriod_array, chargingSchedulePeriod_object);
+    //         }
 
-            json_object_object_add(chargingSchedule_object, "chargingSchedulePeriod", chargingSchedulePeriod_array);
-        }
+    //         json_object_object_add(chargingSchedule_object, "chargingSchedulePeriod", chargingSchedulePeriod_array);
+    //     }
 
-        json_object_object_add(payload_object, "chargingSchedule", chargingSchedule_object);
-    }
+    //     json_object_object_add(payload_object, "chargingSchedule", chargingSchedule_object);
+    // }
 
-    json_object_array_add(root_object, payload_object);
+    // json_object_array_add(root_object, payload_object);
 
-    const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
+    // const char *json_string = json_object_to_json_string(root_object);
+    // char *message = strdup(json_string);
 
-    json_object_put(root_object);
+    // json_object_put(root_object);
 
-    return message;
+    // return message;
 }
 
 /**
@@ -748,61 +1311,57 @@ char *ocpp_package_prepare_GetCompositeSchedule_Response(const char *UniqueId, o
  * @param:
  * @return:
  */
-char *ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_package_GetConfiguration_conf_t *GetConfiguration)
+void ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_package_GetConfiguration_conf_t *getConfiguration_conf)
 {
-    if (UniqueId == NULL || GetConfiguration == NULL)
+    if (UniqueId == NULL || getConfiguration_conf == NULL)
     {
-        return NULL;
+        return;
     }
-    struct json_object *root_object = json_object_new_array();
-    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
 
-    struct json_object *payload_object = json_object_new_object();
+    // 创建一个 JSON 对象用于存储 GetConfiguration.conf 响应
+    struct json_object *response_obj = json_object_new_array();
+    json_object_array_add(response_obj, json_object_new_int(OCPP_PACKAGE_CALL_RESULT)); // 请求序列号
+    json_object_array_add(response_obj, json_object_new_string(UniqueId));              // 唯一标识符
+    json_object_array_add(response_obj, json_object_new_string("GetConfiguration"));    // 操作类型
 
-    if (GetConfiguration->configurationKeyIsUse)
+    // 创建一个 JSON 对象用于存储配置信息
+    struct json_object *config_obj = json_object_new_object();
+
+    // 创建 "configurationKey" 数组和 "unknownKey" 数组
+    struct json_object *configuration_key_array = json_object_new_array();
+    struct json_object *unknown_key_array = json_object_new_array();
+    // 遍历 GetConfiguration.conf 结构体数组
+    for (int i = 0; i < getConfiguration_conf->numberOfKey; i++)
     {
-        struct json_object *config_keys_array = json_object_new_array();
-
-        int i = 0;
-        for (i = 0; i < GetConfiguration->numberOfConfigurationKey; i++)
+        // 根据类型将配置项添加到相应的数组中
+        if (getConfiguration_conf[i].type == -1)
         {
-            struct json_object *config_key_object = json_object_new_object();
-            json_object_object_add(config_key_object, "key", json_object_new_string(GetConfiguration->configurationKey[i]->key));
-            json_object_object_add(config_key_object, "readonly", json_object_new_boolean(GetConfiguration->configurationKey[i]->readonly));
-
-            if (GetConfiguration->configurationKey[i]->valueIsUse)
-            {
-                json_object_object_add(config_key_object, "value", json_object_new_string(GetConfiguration->configurationKey[i]->value));
-            }
-
-            json_object_array_add(config_keys_array, config_key_object);
+            json_object_array_add(unknown_key_array, json_object_new_string(getConfiguration_conf[i].key));
         }
-
-        json_object_object_add(payload_object, "configurationKey", config_keys_array);
-    }
-
-    if (GetConfiguration->unknownKeyIsUse)
-    {
-        struct json_object *unknown_keys_array = json_object_new_array();
-
-        int i = 0;
-        for (i = 0; i < GetConfiguration->numberOfUnknownKey; i++)
+        else
         {
-            json_object_array_add(unknown_keys_array, json_object_new_string(GetConfiguration->unknownKey[i]));
+            struct json_object *config_key_obj = json_object_new_object();
+            json_object_object_add(config_key_obj, "key", json_object_new_string(getConfiguration_conf[i].key));
+            json_object_object_add(config_key_obj, "readonly", json_object_new_boolean(getConfiguration_conf[i].accessibility));
+            json_object_object_add(config_key_obj, "value", json_object_new_string(getConfiguration_conf[i].value));
+            json_object_array_add(configuration_key_array, config_key_obj);
         }
-
-        json_object_object_add(payload_object, "unknownKey", unknown_keys_array);
     }
 
-    json_object_array_add(root_object, payload_object);
+    // 添加 "configurationKey" 数组和 "unknownKey" 数组到配置信息对象
+    json_object_object_add(config_obj, "configurationKey", configuration_key_array);
+    json_object_object_add(config_obj, "unknownKey", unknown_key_array);
 
-    const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
+    // 将配置信息添加到响应对象中
+    json_object_array_add(response_obj, config_obj);
 
-    json_object_put(root_object);
+    // 打印或返回 JSON 响应对象
+    const char *json_string = json_object_to_json_string(response_obj);
 
-    return message;
+    enqueueSendMessage(UniqueId, json_string, 0);
+
+    // 释放 JSON 对象
+    json_object_put(response_obj);
 }
 
 /**
@@ -837,33 +1396,43 @@ char *ocpp_package_prepare_GetDiagnostics_Response(const char *UniqueId, ocpp_pa
 }
 
 /**
- * @description: 创建 RemoteStartTransaction.conf 消息
- * @param:
- * @return:
+ * @description:
+ * @param {char *} uniqueId
+ * @param {ocpp_package_RemoteStartTransaction_req_t} remoteStartTransaction_req
+ * @return {*}
  */
-char *ocpp_package_prepare_RemoteStartTransaction_Response(const char *UniqueId, ocpp_package_RemoteStartTransaction_conf_t *RemoteStartTransaction)
+void ocpp_chargePoint_manageRemoteStartTransaction_Req(const char *uniqueId, ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req)
 {
-    if (UniqueId == NULL || RemoteStartTransaction == NULL)
+
+    ocpp_package_RemoteStartTransaction_conf_t remoteStartTransaction_conf;
+    memset(&remoteStartTransaction_conf, 0, sizeof(remoteStartTransaction_conf));
+    ocpp_chargePoint_transaction_t *transaction = ocpp_chargePoint->transaction_obj[remoteStartTransaction_req.connectorId];
+    remoteStartTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_REJECTED;
+    if (transaction->isStart == false && transaction->isTransaction == false)
     {
-        return NULL;
+        memset(transaction, 0, sizeof(ocpp_chargePoint_transaction_t));
+        strncpy(transaction->startIdTag, remoteStartTransaction_req.idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
+        transaction->isStart = true;
+        remoteStartTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_ACCEPTED;
     }
+    // response
     struct json_object *root_object = json_object_new_array();
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_RemoteStartStopStatus_text[RemoteStartTransaction->status]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_RemoteStartStopStatus_text[remoteStartTransaction_conf.status]));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
 
-    json_object_put(root_object);
-
-    return message;
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
+    if (root_object)
+    {
+        json_object_put(root_object);
+    }
 }
-
 /**
  * @description: 创建 RemoteStopTransaction.conf 消息
  * @param:
@@ -947,35 +1516,94 @@ char *ocpp_package_prepare_Reset_Response(const char *UniqueId, ocpp_package_Res
 
     return message;
 }
-
 /**
- * @description: 创建SendLocalList.conf消息
- * @param:
- * @return:
+ * @description:
+ * @param {char *} uniqueId
+ * @param {ocpp_package_SendLocalList_req_t *} sendLocalList
+ * @return {*}
  */
-char *ocpp_package_prepare_SendLocalList_Response(const char *UniqueId, ocpp_package_SendLocalList_conf_t *SendLocalList)
+void ocpp_chargePoint_manageSendLocalList_Req(const char *uniqueId, ocpp_package_SendLocalList_req_t *sendLocalList_req)
 {
-    if (UniqueId == NULL || SendLocalList == NULL)
+    ocpp_package_SendLocalList_conf_t sendLocalList_conf;
+    memset(&sendLocalList_conf, 0, sizeof(sendLocalList_conf));
+
+    sendLocalList_conf.status = OCPP_PCAKGE_UPDATE_STATUS_ACCEPTED;
+
+    int LocalAuthListEnabled = 0;
+    int LocalAuthListMaxLength;
+    ocpp_ConfigurationKey_getValue("LocalAuthListEnabled", &LocalAuthListEnabled);
+    ocpp_ConfigurationKey_getValue("LocalAuthListMaxLength", &LocalAuthListMaxLength);
+
+    printf("LocalAuthListEnabled = %d\n", LocalAuthListEnabled);
+    if (LocalAuthListEnabled == 0)
     {
-        return NULL;
+        sendLocalList_conf.status = OCPP_PCAKGE_UPDATE_STATUS_NOTSUPPORTED;
     }
+    else if (sendLocalList_req->numberOfAuthorizationData > LocalAuthListMaxLength)
+    {
+        sendLocalList_conf.status = OCPP_PCAKGE_UPDATE_STATUS_FAILED;
+    }
+    else if (sendLocalList_req->listVersion <= ocpp_localAuthorization_List_getListVersion("Version"))
+    {
+        sendLocalList_conf.status = OCPP_PCAKGE_UPDATE_STATUS_VERSION_MISMATCH;
+    }
+
+    else
+    {
+        ocpp_localAuthorization_Version_setVersion("Version", sendLocalList_req->listVersion);
+
+        if (sendLocalList_req->UpdateType == OCPP_PACKAGE_UPDATE_TYPE_FULL)
+        {
+            ocpp_localAuthorization_List_clearList();
+        }
+
+        // 更新本地列表
+        if (sendLocalList_req->numberOfAuthorizationData > 0 && sendLocalList_req->localAuthorizationListIsUse)
+        {
+            ocpp_localAuthorization_list_entry_t entry;
+            memset(&entry, 0, sizeof(ocpp_localAuthorization_list_entry_t));
+
+            for (int i = 0; i < sendLocalList_req->numberOfAuthorizationData; i++)
+            {
+                strncpy(entry.IdTag, sendLocalList_req->localAuthorizationList[i].idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
+
+                if (sendLocalList_req->localAuthorizationList[i].idTagInfoIsUse)
+                {
+                    if (sendLocalList_req->localAuthorizationList[i].idTagInfo.parentIdTagIsUse)
+                        strncpy(entry.parentIdTag, sendLocalList_req->localAuthorizationList[i].idTagInfo.parentIdTag, OCPP_AUTHORIZATION_IDTAG_LEN);
+                    if (sendLocalList_req->localAuthorizationList[i].idTagInfo.expiryDateIsUse)
+                    {
+                        strncpy(entry.expiryDate, sendLocalList_req->localAuthorizationList[i].idTagInfo.expiryDate, 32);
+                    }
+
+                    entry.status = sendLocalList_req->localAuthorizationList[i].idTagInfo.AuthorizationStatus;
+                }
+                printf("expiryDate = %s\n",sendLocalList_req->localAuthorizationList[i].idTagInfo.expiryDate);
+                ocpp_localAuthorization_List_write(&entry);
+
+                if (entry.expiryDate)
+                    free(entry.expiryDate); // 释放已分配的内存
+            }
+        }
+    }
+
     struct json_object *root_object = json_object_new_array();
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
-
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_UpdateStatus_text[SendLocalList->status]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_UpdateStatus_text[sendLocalList_conf.status]));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
 
-    json_object_put(root_object);
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
 
-    return message;
+    if (root_object)
+    {
+        json_object_put(root_object);
+    }
 }
-
 /**
  * @description: 创建SetChargingProfile.conf消息
  * @param:
@@ -992,7 +1620,7 @@ char *ocpp_package_prepare_SetChargingProfile_Response(const char *UniqueId, ocp
     json_object_array_add(root_object, json_object_new_string(UniqueId));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_ChargingProfileStatus_text[SetChargingProfile->status]));
+    json_object_object_add(payload_object, "status", json_object_new_string("Accepted"));
 
     json_object_array_add(root_object, payload_object);
 

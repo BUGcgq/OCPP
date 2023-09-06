@@ -1,12 +1,3 @@
-/*
- * @Author: LIYAOHAN 1791002655@qq.com
- * @Date: 2023-04-23 15:24:03
- * @LastEditors: LIYAOHAN 1791002655@qq.com
- * @LastEditTime: 2023-05-05 19:35:13
- * @FilePath: /OCPP/ocpp_firmwareUpdata.c
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
-
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -21,7 +12,7 @@
 #include "ocpp_firmwareUpdata.h"
 #include "ocpp_package.h"
 #include "ocpp_chargePoint.h"
-#include "ocpp_log.h"
+
 
 static enum OCPP_PACKAGE_FIRMWARE_STATUS_E ocpp_firmwareUpdate_lastUpdateState;
 
@@ -57,7 +48,7 @@ int ftpNewCmd(int sock, char *buf, char *cmd, char *param)
 		strcat(buf, param);
 	}
 	strcat(buf, "\r\n");
-	OCPP_LOG_DEBUG("*%s", buf); // print the cmd to the screen
+	printf("*%s", buf); // print the cmd to the screen
 	if (send(sock, buf, strlen(buf), 0) == -1)
 	{
 		perror("send");
@@ -78,7 +69,6 @@ int ftpNewCmd(int sock, char *buf, char *cmd, char *param)
 
 int ftpConvertAddy(char *buf, char *hostname, int *port)
 {
-	OCPP_LOG_DEBUG();
 	unsigned int i, t = 0;
 	int flag = 0, decCtr = 0, tport1, tport2;
 	char tmpPort[6];
@@ -151,14 +141,12 @@ int ftpConvertAddy(char *buf, char *hostname, int *port)
 		if (decCtr > 3)
 			hostname[i] = '\0';
 	}
-	OCPP_LOG_DEBUG();
 	return 0;
 }
 
 int ftpGetFile(char *filename, int sd)
 {
 	// Cogido de https://www.linuxquestions.org/questions/programming-9/tcp-file-transfer-in-c-with-socket-server-client-on-linux-help-with-code-4175413995/
-	OCPP_LOG_DEBUG();
 	char revbuf[512];
 	FILE *pf;
 	unsigned long fsize;
@@ -215,7 +203,6 @@ int ftpGetFile(char *filename, int sd)
 // ftpGetProcess(params->location, 21, params->username, params->password, params->originalfilename,params->destinationfilename);
 int ocpp_firmwareUpdata_ftpGetProcess(char *hostname, int port, char *username, char *password)
 {
-	OCPP_LOG_DEBUG();
 	int sd;
 	struct sockaddr_in pin;
 	struct hostent *hp;
@@ -232,7 +219,7 @@ int ocpp_firmwareUpdata_ftpGetProcess(char *hostname, int port, char *username, 
 
 	///////////////////////////////////////////////////////////////
 	//"ftp://192.168.1.31/inc/SD10"  EVCM-SD10.tar.gz
-	OCPP_LOG_DEBUG("URL = %s", hostname);
+	printf("URL = %s", hostname);
 	char *stringPointStart;
 	char *stringPointEnd;
 	stringPointStart = strchr(hostname, '/');
@@ -244,7 +231,7 @@ int ocpp_firmwareUpdata_ftpGetProcess(char *hostname, int port, char *username, 
 	char ipAddress[20];
 	strncpy(ipAddress, stringPointStart, (stringPointEnd - stringPointStart));
 	ipAddress[stringPointEnd - stringPointStart + 1] = '\0';
-	OCPP_LOG_DEBUG("ipAddress = #%s#", ipAddress);
+	printf("ipAddress = #%s#", ipAddress);
 
 	char ftpPath[256];
 	char ftpUpdateFileName[128];
@@ -255,10 +242,10 @@ int ocpp_firmwareUpdata_ftpGetProcess(char *hostname, int port, char *username, 
 	//   DEBUG_MSG("stringPointEnd = #%c#",*stringPointEnd);
 	strncpy(ftpPath + 1, stringPointStart, (stringPointEnd - stringPointStart) + 1);
 	ftpPath[1 + (stringPointEnd - stringPointStart) + 1] = '\0';
-	OCPP_LOG_DEBUG("ftpPath = #%s#\n", ftpPath);
+	printf("ftpPath = #%s#\n", ftpPath);
 
 	strncpy(ftpUpdateFileName, stringPointEnd + 1, strlen(stringPointEnd) + 1);
-	OCPP_LOG_DEBUG("ftpUpdataName = #%s#\n", ftpUpdateFileName);
+	printf("ftpUpdataName = #%s#\n", ftpUpdateFileName);
 
 	// IP地址、文件路径、文件名为空
 	if (ipAddress == NULL || ftpPath == NULL || ftpUpdateFileName == NULL)
@@ -320,66 +307,66 @@ int ocpp_firmwareUpdata_ftpGetProcess(char *hostname, int port, char *username, 
 	system("rm /app/update/EVCM-SD10.tar.gz");
 	if (ftpRecvResponse(sd, buf) == 1)
 	{
-		OCPP_LOG_DEBUG("wait for ftp server to start talking");
+		printf("wait for ftp server to start talking");
 
 		if (strncmp(buf, "220", 3) == 0)
 		{
-			OCPP_LOG_DEBUG("make sure it ends with a 220");
+			printf("make sure it ends with a 220");
 
 			if (ftpNewCmd(sd, buf, "USER", username) == 1)
 			{
-				OCPP_LOG_DEBUG("issue the command to login");
+				printf("issue the command to login");
 
 				if (ftpRecvResponse(sd, buf) == 1)
 				{
-					OCPP_LOG_DEBUG("wait for response");
+					printf("wait for response");
 
 					if (strncmp(buf, "331", 3) == 0)
 					{
-						OCPP_LOG_DEBUG("make sure response is a 331");
+						printf("make sure response is a 331");
 
 						if (ftpNewCmd(sd, buf, "PASS", password) == 1)
 						{
-							OCPP_LOG_DEBUG("input password");
+							printf("input password");
 
 							if (ftpRecvResponse(sd, buf) == 1)
 							{
-								OCPP_LOG_DEBUG("wait for response");
+								printf("wait for response");
 
 								if (strncmp(buf, "230", 3) == 0)
 								{
-									OCPP_LOG_DEBUG("make sure its a 230");
+									printf("make sure its a 230");
 
 									if (ftpNewCmd(sd, buf, "TYPE", "I") == 1)
 									{
-										OCPP_LOG_DEBUG("file type");
+										printf("file type");
 										//										DEBUG_MSG("notify server we want to pass a file");
 
 										if (ftpRecvResponse(sd, buf) == 1)
 										{
-											OCPP_LOG_DEBUG("wait for response");
+											printf("wait for response");
 
 											if (strncmp(buf, "200", 3) == 0)
 											{
-												OCPP_LOG_DEBUG("mke sure it starts with a 200");
+												printf("mke sure it starts with a 200");
 												//												DEBUG_MSG("make sure it starts with a 229");
 
 												// 请求服务器等待数据连接
 												if (ftpNewCmd(sd, buf, "PASV", NULL) == 1)
 												{
 
-													OCPP_LOG_DEBUG("The request server is waiting for a data connection");
+													printf("The request server is waiting for a data connection");
 													if (ftpRecvResponse(sd, buf) == 1)
 													{
 
-														OCPP_LOG_DEBUG("wait for response");
+														printf("wait for response");
 														if (strncmp(buf, "227", 3) == 0)
 														{
 
-															OCPP_LOG_DEBUG("make sure it start with 227");
+															printf("make sure it start with 227");
 															ftpConvertAddy(buf, tmpHost, &tmpPort); // then convert the return to usable data
-															OCPP_LOG_DEBUG("I will back %s\n\n", buf);
-															OCPP_LOG_DEBUG("HOST: %s, PORT:%d", tmpHost, tmpPort);
+															printf("I will back %s\n\n", buf);
+															printf("HOST: %s, PORT:%d", tmpHost, tmpPort);
 															////////////////////////////////////////////////
 															// NUEVA CONEXION DE DATOS
 															int sd2;
@@ -390,7 +377,7 @@ int ocpp_firmwareUpdata_ftpGetProcess(char *hostname, int port, char *username, 
 
 															if ((hp = gethostbyname(tmpHost)) == 0)
 															{
-																OCPP_LOG_DEBUG();
+														
 																perror("gethostbyname");
 																return -1;
 															}
@@ -402,7 +389,7 @@ int ocpp_firmwareUpdata_ftpGetProcess(char *hostname, int port, char *username, 
 
 															if ((sd2 = socket(AF_INET, SOCK_STREAM, 0)) == -1)
 															{
-																OCPP_LOG_DEBUG();
+														
 																perror("socket port 20");
 																return -1;
 															}
@@ -414,56 +401,56 @@ int ocpp_firmwareUpdata_ftpGetProcess(char *hostname, int port, char *username, 
 															}
 
 															////////////////////////////////////////////////
-															OCPP_LOG_DEBUG();
+													
 															if (ftpNewCmd(sd, buf, "CWD", ftpPath) == 1)
 															{ /////////////FTP服务器路径
-																OCPP_LOG_DEBUG("change dir");
+																printf("change dir");
 
 																if (ftpRecvResponse(sd, buf) == 1)
 																{
-																	OCPP_LOG_DEBUG("wait a response");
+																	printf("wait a response");
 
 																	if (strncmp(buf, "250", 3) == 0)
 																	{
-																		OCPP_LOG_DEBUG("make sure it start with 250");
+																		printf("make sure it start with 250");
 
 																		if (ftpNewCmd(sd, buf, "SIZE", ftpUpdateFileName) == 1)
 																		{ /////////////////升级包文件名
-																			OCPP_LOG_DEBUG("Get file size");
+																			printf("Get file size");
 
 																			if (ftpRecvResponse(sd, buf) == 1)
 																			{
-																				OCPP_LOG_DEBUG("wait for a response");
+																				printf("wait for a response");
 
 																				if (strncmp(buf, "213", 3) == 0)
 																				{
 																					filesize = atoi((char *)buf + 4);
-																					OCPP_LOG_DEBUG("file size %d", filesize);
+																					printf("file size %d", filesize);
 
 																					if (ftpNewCmd(sd, buf, "RETR", ftpUpdateFileName) == 1)
 																					{ /////////////////////从服务器下载文件
-																						OCPP_LOG_DEBUG("set the file name AND");
+																						printf("set the file name AND");
 
 																						if (ftpRecvResponse(sd, buf) == 1)
 																						{
-																							OCPP_LOG_DEBUG("wait for a response");
+																							printf("wait for a response");
 
 																							if (strncmp(buf, "150", 3) == 0 || strncmp(buf, "120", 3) == 0)
 																							{
-																								OCPP_LOG_DEBUG("make sure its a 150 so we know the server got it all");
-																								OCPP_LOG_DEBUG("下载数据包");
+																								printf("make sure its a 150 so we know the server got it all");
+																								printf("下载数据包");
 																								ftpGetFile("/app/update/EVCM-SD10.tar.gz" /*file*/, sd2); ///////////////////本地路径
 
 																								if (ftpRecvResponse(sd, buf) == 1)
 																								{
-																									OCPP_LOG_DEBUG("wait for a response");
+																									printf("wait for a response");
 
 																									if (strncmp(buf, "226", 3) == 0)
 																									{
-																										OCPP_LOG_DEBUG("make sure it start with 226");
+																										printf("make sure it start with 226");
 																										if (ftpNewCmd(sd, buf, "QUIT", "") == 1)
 																										{ // set the file name AND
-																											OCPP_LOG_DEBUG("Quit");
+																											printf("Quit");
 																											return 1;
 																										}
 																									}

@@ -30,6 +30,7 @@ include_directories(
 # 需要链接的库
 set(COMMON_LINK_LIBS
     -lpthread
+    -lrt
     ${EXT_LIB_DIR}/sqlite-3.33-nuc970/lib/libsqlite3.so
     ${EXT_LIB_DIR}/json-c-0.9-nuc970/lib/libjson-c.so
     ${EXT_LIB_DIR}/libwebsockets/lib/libwebsockets.so

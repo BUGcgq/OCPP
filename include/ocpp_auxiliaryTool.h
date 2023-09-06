@@ -23,9 +23,9 @@ char * ocpp_AuxiliaryTool_GenerateUUID();
 int ocpp_AuxiliaryTool_GenerateInt();
 unsigned int ocpp_AuxiliaryTool_getSystemTime_ms(void);
 unsigned int ocpp_AuxiliaryTool_getDiffTime_ms(unsigned int *pu32_last_time);
-
 int ocpp_AuxiliaryTool_charCounter(char* pString, char c);
-char** ocpp_AuxiliaryTool_str_split(char* a_str, const char a_delim);
+int isWithinValidity(const char *timeStr);
+// char** ocpp_AuxiliaryTool_str_split(char* a_str, const char a_delim);
 
 
 #ifdef __cplusplus

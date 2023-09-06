@@ -1,13 +1,4 @@
-/*
- * @Author: LIYAOHAN 1791002655@qq.com
- * @Date: 2023-04-23 16:42:42
- * @LastEditors: LIYAOHAN 1791002655@qq.com
- * @LastEditTime: 2023-05-08 16:57:43
- * @FilePath: /OCPP/ocpp_reserve.c
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
 #include "ocpp_reserve.h"
-#include "ocpp_log.h"
 
 #include <string.h>
 
@@ -34,7 +25,7 @@ static int ocpp_reserve_create_table(sqlite3 *p_db)
 
 	if (sqlite3_exec(p_db, sql, NULL, 0, &zErrMsg) != SQLITE_OK)
 	{
-		OCPP_LOG_DEBUG("创建Reservations表失败 %s", zErrMsg);
+		printf("创建Reservations表失败 %s", zErrMsg);
 		sqlite3_free(zErrMsg);
 		return -1;
 	}
@@ -61,7 +52,7 @@ static void ocpp_reserve_insert(int reservationId, int connector, char *expiryDa
 
 	if (rc != SQLITE_OK)
 	{
-		OCPP_LOG_ERROR("SELECT count(*) FROM Reservations where ReservationId = %d Fail", reservationId);
+		printf("SELECT count(*) FROM Reservations where ReservationId = %d Fail", reservationId);
 		return;
 	}
 
@@ -81,7 +72,7 @@ static void ocpp_reserve_insert(int reservationId, int connector, char *expiryDa
 
 		if (rc != SQLITE_OK)
 		{
-			OCPP_LOG_ERROR("fail insert reserve %d %s", reservationId, ErrMsg);
+			printf("fail insert reserve %d %s", reservationId, ErrMsg);
 			sqlite3_free(ErrMsg);
 		}
 	}
@@ -103,7 +94,7 @@ static void ocpp_reserve_closeReservation(int reservationId)
 
 	if (sqlite3_exec(ocpp_RE, sql, NULL, NULL, &ErrMsg) != SQLITE_OK)
 	{
-		OCPP_LOG_ERROR("ERROR = %s", ErrMsg);
+		printf("ERROR = %s", ErrMsg);
 		sqlite3_free(ErrMsg);
 	}
 }
@@ -128,7 +119,7 @@ void ocpp_reserve_updateReservation(int reservationId, int connector, char *expi
 	if (rc != SQLITE_OK)
 	{
 
-		OCPP_LOG_ERROR("Fail SELECT count(*) FROM Reservations where ReservationId=%d", reservationId);
+		printf("Fail SELECT count(*) FROM Reservations where ReservationId=%d", reservationId);
 		return;
 	}
 
@@ -138,12 +129,12 @@ void ocpp_reserve_updateReservation(int reservationId, int connector, char *expi
 
 	if (found <= 0)
 	{
-		OCPP_LOG_DEBUG("insert Reservation");
+		printf("insert Reservation");
 		ocpp_reserve_insert(reservationId, connector, expiryDate, Idtag, parentIdTag);
 	}
 	else
 	{
-		OCPP_LOG_DEBUG("upDate Reservation");
+		printf("upDate Reservation");
 		snprintf(sql, 256, "UPDATE Reservations set ConnectorId=%d,ExpiryDate='%s',IdTag='%s',ParentIdTag='%s' where ReservationId=%d;",
 				 connector, expiryDate, Idtag, parentIdTag, reservationId);
 
@@ -151,7 +142,7 @@ void ocpp_reserve_updateReservation(int reservationId, int connector, char *expi
 
 		if (rc != SQLITE_OK)
 		{
-			OCPP_LOG_ERROR("Fail update reserve %d %s", reservationId, ErrMsg);
+			printf("Fail update reserve %d %s", reservationId, ErrMsg);
 			sqlite3_free(ErrMsg);
 		}
 	}
@@ -174,7 +165,7 @@ void ocpp_reserve_removeReservation(int reservationId)
 	if (sqlite3_exec(ocpp_RE, sql, NULL, NULL, &ErrMsg) != SQLITE_OK)
 	{
 
-		OCPP_LOG_ERROR("ERROR = %s", ErrMsg);
+		printf("ERROR = %s", ErrMsg);
 	}
 }
 
@@ -196,7 +187,7 @@ int ocpp_reserve_readReservation(int connectorId, ocpp_reserve_t *reserve)
 
 	if (rc != SQLITE_OK)
 	{
-		OCPP_LOG_ERROR("查询失败 SELECT ReservationId,ExpiryDate,IdTag FROM Reservations;");
+		printf("查询失败 SELECT ReservationId,ExpiryDate,IdTag FROM Reservations;");
 		return -1;
 	}
 
@@ -232,6 +223,6 @@ void ocpp_reserve_init(sqlite3 *ocpp_db)
 	ocpp_RE = ocpp_db;
 	if (ocpp_reserve_create_table(ocpp_RE) == -1)
 	{
-		OCPP_LOG_ERROR("create reserve table fail");
+		printf("create reserve table fail");
 	}
 }

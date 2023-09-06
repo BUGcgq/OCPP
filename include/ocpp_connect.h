@@ -31,7 +31,7 @@ typedef struct{
     bool  isConnect;                 //是否与服务器建立连接
     bool  isSendFinish;              //
     void (*send)(const char * const message, size_t len);
-    void (*receive)(const char * const message, int len);                //需上层实现对接收的处理
+    void (*receive)(void * message, int len);                //需上层实现对接收的处理
 
 }ocpp_connect_t;
 
