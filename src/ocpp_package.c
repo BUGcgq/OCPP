@@ -1203,7 +1203,7 @@ char *ocpp_package_prepare_DataTransfer_Response(const char *UniqueId, ocpp_pack
  * @param {ocpp_package_GetLocalListVersion_req_t} GetLocalListVersion
  * @return {*}
  */
-void ocpp_chargePoint_GetLocalListVersion_Req(const char *uniqueId, ocpp_package_GetLocalListVersion_req_t GetLocalListVersion_req)
+void ocpp_chargePoint_GetLocalListVersion_Req(const char *uniqueId)
 {
     struct json_object *root_object = json_object_new_array();
     if (root_object == NULL)
@@ -1578,7 +1578,7 @@ void ocpp_chargePoint_manageSendLocalList_Req(const char *uniqueId, ocpp_package
 
                     entry.status = sendLocalList_req->localAuthorizationList[i].idTagInfo.AuthorizationStatus;
                 }
-                printf("expiryDate = %s\n",sendLocalList_req->localAuthorizationList[i].idTagInfo.expiryDate);
+                printf("expiryDate = %s\n", sendLocalList_req->localAuthorizationList[i].idTagInfo.expiryDate);
                 ocpp_localAuthorization_List_write(&entry);
 
                 if (entry.expiryDate)
@@ -1633,33 +1633,55 @@ char *ocpp_package_prepare_SetChargingProfile_Response(const char *UniqueId, ocp
 }
 
 /**
- * @description: 创建TriggerMessage.conf消息
- * @param:
- * @return:
+ * @description:
+ * @param {char *} uniqueId
+ * @param {ocpp_package_TriggerMessage_req_t} triggerMessage
+ * @return {*}
  */
-char *ocpp_package_prepare_TriggerMessage_Response(const char *UniqueId, ocpp_package_TriggerMessage_conf_t *TriggerMessage)
+void ocpp_chargePoint_manageTriggerMessageRequest(const char *uniqueId, ocpp_package_TriggerMessage_req_t triggerMessage_req)
 {
-    if (UniqueId == NULL || TriggerMessage == NULL)
+    switch (triggerMessage_req.requestedMessage)
     {
-        return NULL;
+    case OCPP_PCAKGE_MESSAGE_TRIGGER_BOOTNOTIFICATION:
+       ocpp_package_prepare_ConfigurationStatus_Req(uniqueId, 0);
+        ocpp_chargePoint_sendBootNotification_req();
+        break;
+
+    case OCPP_PCAKGE_MESSAGE_TRIGGER_DIAGNOSTICSSTATUS_NOTIFICATION:
+        // ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
+        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId, 3);
+        break;
+
+    case OCPP_PCAKGE_MESSAGE_TRIGGER_FIRMWARESTATUS_NOTIFICATION:
+        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId, 3);
+        // ocpp_chargePoint_sendFirmwareStatusNotification_Req();
+        break;
+
+    case OCPP_PCAKGE_MESSAGE_TRIGGER_HEARTBEAT:
+        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId, 0);
+        ocpp_chargePoint_sendHeartbeat_Req();
+        break;
+
+    case OCPP_PCAKGE_MESSAGE_TRIGGER_METERVALUES:
+        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId, 0);
+        if (triggerMessage_req.connectorIdIsUse)
+            ocpp_chargePoint_sendMeterValues(triggerMessage_req.connectorId, 0);
+        else
+            ocpp_chargePoint_sendMeterValues(0, 0);
+        break;
+
+    case OCPP_PCAKGE_MESSAGE_TRIGGER_STATUS_NOTIFICATION:
+        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId, 0);
+        if (triggerMessage_req.connectorIdIsUse)
+            ocpp_chargePoint_sendStatusNotification_Req(triggerMessage_req.connectorId);
+        else
+            ocpp_chargePoint_sendStatusNotification_Req(0);
+        break;
+
+    default:
+        break;
     }
-    struct json_object *root_object = json_object_new_array();
-    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
-
-    struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_TriggerMessageStatus_text[TriggerMessage->status]));
-
-    json_object_array_add(root_object, payload_object);
-
-    const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
-
-    json_object_put(root_object);
-
-    return message;
 }
-
 /**
  * @description: 创建UnlockConnector.conf消息
  * @param:
@@ -1715,7 +1737,25 @@ char *ocpp_package_prepare_UpdateFirmware_Response(const char *UniqueId, ocpp_pa
 
     return message;
 }
+void ocpp_package_prepare_ConfigurationStatus_Req(char *UniqueId, enum OCPP_PACKAGE_CONFIGURATION_STATUS_E Status)
+{
 
+    struct json_object *root_array = json_object_new_array();
+    json_object_array_add(root_array, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
+    json_object_array_add(root_array, json_object_new_string(UniqueId));
+
+    struct json_object *payload_object = json_object_new_object();
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_ConfigurationStatus_text[Status]));
+
+    json_object_array_add(root_array, payload_object);
+
+    const char *json_string = json_object_to_json_string(root_array);
+    enqueueSendMessage(UniqueId, json_string, OCPP_PACKAGE_CALL);
+    if (root_array)
+    {
+        json_object_put(root_array);
+    }
+}
 /**
  * @description:
  * @param:

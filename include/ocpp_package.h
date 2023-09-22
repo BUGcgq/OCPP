@@ -1465,8 +1465,9 @@ int ocpp_chargePoint_sendFirmwareStatusNotification_Req();
 void ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_package_GetConfiguration_conf_t *GetConfiguration);
 void ocpp_chargePoint_manageSendLocalList_Req(const char *uniqueId, ocpp_package_SendLocalList_req_t *sendLocalList_req);
 void ocpp_chargePoint_manageRemoteStartTransaction_Req(const char *uniqueId, ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req);
-void ocpp_chargePoint_GetLocalListVersion_Req(const char *uniqueId, ocpp_package_GetLocalListVersion_req_t GetLocalListVersion_req);
-
+void ocpp_chargePoint_GetLocalListVersion_Req(const char *uniqueId);
+void ocpp_package_prepare_ConfigurationStatus_Req(char *UniqueId, enum OCPP_PACKAGE_CONFIGURATION_STATUS_E Status);
+void ocpp_chargePoint_manageTriggerMessageRequest(const char *uniqueId, ocpp_package_TriggerMessage_req_t triggerMessage_req);
 
 char *ocpp_package_prepare_DataTransfer_Request(const char * UniqueId,ocpp_package_DataTransfer_req_t * DataTransfer);
 char *ocpp_package_prepare_CancelReservation_Response(const char *UniqueId, ocpp_package_CancelReservation_conf_t * CancelReservation);
@@ -1475,14 +1476,12 @@ char *ocpp_package_prepare_ChangeConfiguration_Response(const char *UniqueId, oc
 char *ocpp_package_prepare_ClearCache_Response(const char *UniqueId, ocpp_package_ClearCache_conf_t * ClearCache);
 char *ocpp_package_prepare_ClearChargingProfile_Response(const char *UniqueId, ocpp_package_ClearChargingProfile_conf_t * ClearChargingProfile);
 char *ocpp_package_prepare_DataTransfer_Response(const char * UniqueId,ocpp_package_DataTransfer_conf_t * DataTransfer);
-char *ocpp_package_prepare_GetLocalListVersion_Response(const char *UniqueId, ocpp_package_GetLocalListVersion_conf_t * GetLocalListVersion);
 char *ocpp_package_prepare_GetCompositeSchedule_Response(const char *UniqueId, ocpp_package_GetCompositeSchedule_conf_t * GetCompositeSchedule);
 char *ocpp_package_prepare_GetDiagnostics_Response(const char *UniqueId, ocpp_package_GetDiagnostics_conf_t * GetDiagnostics);
 char *ocpp_package_prepare_RemoteStopTransaction_Response(const char *UniqueId, ocpp_package_RemoteStopTransaction_conf_t * ReserveNow);
 char *ocpp_package_prepare_ReserveNow_Response(const char *UniqueId, ocpp_package_ReserveNow_conf_t * ReserveNow);
 char *ocpp_package_prepare_Reset_Response(const char *UniqueId, ocpp_package_Reset_conf_t * Reset);
 char *ocpp_package_prepare_SetChargingProfile_Response(const char *UniqueId, ocpp_package_SetChargingProfile_conf_t * SetChargingProfile);
-char *ocpp_package_prepare_TriggerMessage_Response(const char *UniqueId, ocpp_package_TriggerMessage_conf_t * TriggerMessage);
 char *ocpp_package_prepare_UnlockConnector_Response(const char *UniqueId, ocpp_package_UnlockConnector_conf_t * UnlockConnector);
 char *ocpp_package_prepare_UpdateFirmware_Response(const char *UniqueId, ocpp_package_UpdateFirmware_conf_t * UpdateFirmware);
 
