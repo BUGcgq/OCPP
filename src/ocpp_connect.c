@@ -8,7 +8,6 @@
 
 int current_reconnect_attempt = 0;
 #define OCPP_CONNECT_SEND_BUFFER 2048 // 发送缓存区大小
-#define PING_COUNTER_OVER_MAX 200	  // 设置为200以实现每10秒发送一次Ping帧
 // 每个使用这个协议的新连接在建立连接时都会分配这么多内存，在断开连接时会释放这么多内存。指向此按连接分配的指针被传递到user参数中的回调中
 typedef struct
 {
@@ -129,9 +128,13 @@ static int send_ping(struct lws *wsi)
  */
 static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len)
 {
-
-	// printf("       reason = %d\n",reason);
 	static int pingCounter = 0;
+	int WebSocketPingInterval;
+	ocpp_ConfigurationKey_getValue("WebSocketPingInterval",&WebSocketPingInterval);
+	if (WebSocketPingInterval < 5)
+	{
+		WebSocketPingInterval = 5;
+	}
 	switch (reason)
 	{
 	case LWS_CALLBACK_PROTOCOL_INIT:
@@ -188,7 +191,7 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 
 		pingCounter++;
 
-		if (pingCounter >= PING_COUNTER_OVER_MAX)
+		if (pingCounter >= WebSocketPingInterval * 20)
 		{
 			pingCounter = 0;
 
@@ -219,9 +222,7 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 		break;
 
 	case LWS_CALLBACK_CLIENT_RECEIVE:
-		//			printf("[RECV] = %s",(char *)in);
 		session_data.connect->receive(in, len);
-
 		break;
 
 	case LWS_CALLBACK_RECEIVE_PONG:

@@ -198,8 +198,14 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
     enum OCPP_TRANSACTION_STATE_E state = OCPP_TARNSACTION_STATE_NONE;
     bool Startoffline = false;
     bool isCodeBlockExecuted = false; // 在合适的作用域内定义标志变量
+    bool terminate = false;
     while (1)
     {
+        if (terminate)
+        {
+            printf("terminate!");
+            break;
+        }
         switch (state)
         {
         case OCPP_TARNSACTION_STATE_NONE:
@@ -265,6 +271,7 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
 
             printf("permit stop charging!\n");
             ocpp_transaction_sendStopTransaction_Simpleness(connector, item->startIdTag, item->transactionId, item->lastUniqueId, item->reason);
+            terminate = true;
             break;
         }
         usleep(1 * 1000 * 1000); // 等待一段时间后重试
@@ -893,110 +900,110 @@ void ocpp_chargePoint_manage_GetConfigurationRequest(const char *uniqueId, ocpp_
  */
 void *ocpp_chargePoint_diagnostics_upload_thread(void *arg)
 {
-    printf("create upload thread");
-    ocpp_chargePoint_diagnostics_t *diagnostics = (ocpp_chargePoint_diagnostics_t *)arg;
+    // printf("create upload thread");
+    // ocpp_chargePoint_diagnostics_t *diagnostics = (ocpp_chargePoint_diagnostics_t *)arg;
 
-    int retries = 0;
-    struct hostent *hp;
-    char server_filepath_name[256] = {0};
+    // int retries = 0;
+    // struct hostent *hp;
+    // char server_filepath_name[256] = {0};
 
-    for (; true;)
-    {
+    // for (; true;)
+    // {
 
-        if (retries >= diagnostics->retries)
-        {
-            ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOAD_FAILED;
-            ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
-            break;
-        }
+    //     if (retries >= diagnostics->retries)
+    //     {
+    //         ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOAD_FAILED;
+    //         ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
+    //         break;
+    //     }
 
-        printf("数据库导出文件\n");
+    //     printf("数据库导出文件\n");
 
-        // 根据域名提取IP地址
-        printf("根据域名提取IP地址\n");
-        for (; retries < diagnostics->retries; retries++)
-        {
-            if ((hp = gethostbyname(diagnostics->serverAddr)) != NULL)
-            {
-                break;
-            }
-            else
-            {
-                usleep(diagnostics->retryInterval * 1000 * 1000);
-                printf("DNS error = %s", strerror(errno));
-            }
-        }
+    //     // 根据域名提取IP地址
+    //     printf("根据域名提取IP地址\n");
+    //     for (; retries < diagnostics->retries; retries++)
+    //     {
+    //         if ((hp = gethostbyname(diagnostics->serverAddr)) != NULL)
+    //         {
+    //             break;
+    //         }
+    //         else
+    //         {
+    //             usleep(diagnostics->retryInterval * 1000 * 1000);
+    //             printf("DNS error = %s", strerror(errno));
+    //         }
+    //     }
 
-        // 连接FTP服务器
-        printf("连接FTP服务器\n");
-        for (; retries < diagnostics->retries; retries++)
-        {
-            if ((diagnostics->client.control_sock = ocpp_ftp_connect_server((char *)hp->h_addr, diagnostics->port)) >= 0)
-            {
-                break;
-            }
-            else
-            {
-                usleep(diagnostics->retryInterval * 1000 * 1000);
-                printf("diagnostics connect FTP server fail\n");
-            }
-        }
+    //     // 连接FTP服务器
+    //     printf("连接FTP服务器\n");
+    //     for (; retries < diagnostics->retries; retries++)
+    //     {
+    //         if ((diagnostics->client.control_sock = ocpp_ftp_connect_server((char *)hp->h_addr, diagnostics->port)) >= 0)
+    //         {
+    //             break;
+    //         }
+    //         else
+    //         {
+    //             usleep(diagnostics->retryInterval * 1000 * 1000);
+    //             printf("diagnostics connect FTP server fail\n");
+    //         }
+    //     }
 
-        // 登录FTP服务器
-        printf("登录FTP服务器\n");
-        for (; retries < diagnostics->retries; retries++)
-        {
-            if (ocpp_ftp_login_server(diagnostics->client.control_sock, diagnostics->client.usr, diagnostics->client.passwd) >= 0)
-            {
-                break;
-            }
-            else
-            {
-                usleep(diagnostics->retryInterval * 1000 * 1000);
-                printf("diagnostics login ftp server fail\n");
-            }
-        }
+    //     // 登录FTP服务器
+    //     printf("登录FTP服务器\n");
+    //     for (; retries < diagnostics->retries; retries++)
+    //     {
+    //         if (ocpp_ftp_login_server(diagnostics->client.control_sock, diagnostics->client.usr, diagnostics->client.passwd) >= 0)
+    //         {
+    //             break;
+    //         }
+    //         else
+    //         {
+    //             usleep(diagnostics->retryInterval * 1000 * 1000);
+    //             printf("diagnostics login ftp server fail\n");
+    //         }
+    //     }
 
-        // 传输诊断状态通知
-        printf("发送诊断状态通知\n");
-        if (retries < diagnostics->retries)
-        {
-            ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADING;
-            ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
-            strcpy(server_filepath_name, diagnostics->client.ser_filepath);
-            strcat(server_filepath_name, diagnostics->client.ser_filename);
-            printf("server_filepath_name = %s\n", server_filepath_name);
-        }
+    //     // 传输诊断状态通知
+    //     printf("发送诊断状态通知\n");
+    //     if (retries < diagnostics->retries)
+    //     {
+    //         ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADING;
+    //         ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
+    //         strcpy(server_filepath_name, diagnostics->client.ser_filepath);
+    //         strcat(server_filepath_name, diagnostics->client.ser_filename);
+    //         printf("server_filepath_name = %s\n", server_filepath_name);
+    //     }
 
-        // 上传诊断日志通知
-        printf("上传诊断日志\n");
-        for (; retries < diagnostics->retries; retries++)
-        {
-            if (ocpp_ftp_up_file(diagnostics->client.control_sock, server_filepath_name, OCPP_LOGS_FILEPATH, 1, 0) >= 0)
-            {
+    //     // 上传诊断日志通知
+    //     printf("上传诊断日志\n");
+    //     for (; retries < diagnostics->retries; retries++)
+    //     {
+    //         if (ocpp_ftp_up_file(diagnostics->client.control_sock, server_filepath_name, OCPP_LOGS_FILEPATH, 1, 0) >= 0)
+    //         {
 
-                break;
-            }
-            else
-            {
-                usleep(diagnostics->retryInterval * 1000 * 1000);
-                printf("diagnostics upload file fail\n");
-            }
-        }
+    //             break;
+    //         }
+    //         else
+    //         {
+    //             usleep(diagnostics->retryInterval * 1000 * 1000);
+    //             printf("diagnostics upload file fail\n");
+    //         }
+    //     }
 
-        // 诊断日志上传成功
-        printf("诊断日志上传成功\n");
-        if (retries < diagnostics->retries)
-        {
-            ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADED;
-            ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
-            break;
-        }
-    }
+    //     // 诊断日志上传成功
+    //     printf("诊断日志上传成功\n");
+    //     if (retries < diagnostics->retries)
+    //     {
+    //         ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADED;
+    //         ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
+    //         break;
+    //     }
+    // }
 
-    ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_IDLE;
-    free(diagnostics);
-    return NULL;
+    // ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_IDLE;
+    // free(diagnostics);
+    // return NULL;
 }
 
 /**
@@ -1008,93 +1015,93 @@ void *ocpp_chargePoint_diagnostics_upload_thread(void *arg)
 void ocpp_chargePoint_manageGetDiagnosticsRequest(const char *uniqueId, ocpp_package_GetDiagnostics_req_t GetDiagnostics_req)
 {
 
-    ocpp_package_GetDiagnostics_conf_t getDiagnostics_conf;
-    memset(&getDiagnostics_conf, 0, sizeof(getDiagnostics_conf));
+    // ocpp_package_GetDiagnostics_conf_t getDiagnostics_conf;
+    // memset(&getDiagnostics_conf, 0, sizeof(getDiagnostics_conf));
 
-    ocpp_chargePoint_diagnostics_t *diagnostics = (ocpp_chargePoint_diagnostics_t *)calloc(1, sizeof(ocpp_chargePoint_diagnostics_t));
+    // ocpp_chargePoint_diagnostics_t *diagnostics = (ocpp_chargePoint_diagnostics_t *)calloc(1, sizeof(ocpp_chargePoint_diagnostics_t));
 
-    diagnostics->retries = 3;
-    if (GetDiagnostics_req.retriesIsUse)
-        diagnostics->retries = GetDiagnostics_req.retries;
+    // diagnostics->retries = 3;
+    // if (GetDiagnostics_req.retriesIsUse)
+    //     diagnostics->retries = GetDiagnostics_req.retries;
 
-    diagnostics->retryInterval = 60;
-    if (GetDiagnostics_req.retryIntervalIsUse)
-        diagnostics->retryInterval = GetDiagnostics_req.retryInterval;
+    // diagnostics->retryInterval = 60;
+    // if (GetDiagnostics_req.retryIntervalIsUse)
+    //     diagnostics->retryInterval = GetDiagnostics_req.retryInterval;
 
-    diagnostics->isUseStartTime = false;
-    if (GetDiagnostics_req.startTimeIsUse)
-    {
-        diagnostics->isUseStartTime = true;
-        strncpy(diagnostics->startTime, GetDiagnostics_req.startTime, 32);
-    }
+    // diagnostics->isUseStartTime = false;
+    // if (GetDiagnostics_req.startTimeIsUse)
+    // {
+    //     diagnostics->isUseStartTime = true;
+    //     strncpy(diagnostics->startTime, GetDiagnostics_req.startTime, 32);
+    // }
 
-    diagnostics->isUseStopTime = false;
-    if (GetDiagnostics_req.stopTimeIsUse)
-    {
-        diagnostics->isUseStopTime = true;
-        strncpy(diagnostics->stopTime, GetDiagnostics_req.stopTime, 32);
-    }
+    // diagnostics->isUseStopTime = false;
+    // if (GetDiagnostics_req.stopTimeIsUse)
+    // {
+    //     diagnostics->isUseStopTime = true;
+    //     strncpy(diagnostics->stopTime, GetDiagnostics_req.stopTime, 32);
+    // }
 
-    //	"location":"ftp://0209GCpBn7:523Fw6FS@f1.iot17.com:8183/smart/2681b667733cd919e8iq55/diagnostics/1686016382951893/",
-    char *index_start = NULL;
-    char *index_stop = NULL;
+    // //	"location":"ftp://0209GCpBn7:523Fw6FS@f1.iot17.com:8183/smart/2681b667733cd919e8iq55/diagnostics/1686016382951893/",
+    // char *index_start = NULL;
+    // char *index_stop = NULL;
 
-    // extract username
-    index_start = strchr(GetDiagnostics_req.location, '/') + 2;
-    index_stop = strchr(index_start, ':');
-    strncpy(diagnostics->client.usr, index_start, index_stop - index_start);
-    diagnostics->client.usr[index_stop - index_start + 1] = '\0';
-    printf("client.usr = %s", diagnostics->client.usr);
+    // // extract username
+    // index_start = strchr(GetDiagnostics_req.location, '/') + 2;
+    // index_stop = strchr(index_start, ':');
+    // strncpy(diagnostics->client.usr, index_start, index_stop - index_start);
+    // diagnostics->client.usr[index_stop - index_start + 1] = '\0';
+    // printf("client.usr = %s", diagnostics->client.usr);
 
-    // extract password
-    index_start = index_stop + 1;
-    index_stop = strchr(index_start, '@');
-    strncpy(diagnostics->client.passwd, index_start, index_stop - index_start);
-    diagnostics->client.passwd[index_stop - index_start + 1] = '\0';
-    printf("client.passwd = %s", diagnostics->client.passwd);
+    // // extract password
+    // index_start = index_stop + 1;
+    // index_stop = strchr(index_start, '@');
+    // strncpy(diagnostics->client.passwd, index_start, index_stop - index_start);
+    // diagnostics->client.passwd[index_stop - index_start + 1] = '\0';
+    // printf("client.passwd = %s", diagnostics->client.passwd);
 
-    // extract server address
-    index_start = index_stop + 1;
-    index_stop = strchr(index_start, ':');
-    strncpy(diagnostics->serverAddr, index_start, index_stop - index_start);
-    diagnostics->serverAddr[index_stop - index_start + 1] = '\0';
-    printf("serverAddr = %s", diagnostics->serverAddr);
+    // // extract server address
+    // index_start = index_stop + 1;
+    // index_stop = strchr(index_start, ':');
+    // strncpy(diagnostics->serverAddr, index_start, index_stop - index_start);
+    // diagnostics->serverAddr[index_stop - index_start + 1] = '\0';
+    // printf("serverAddr = %s", diagnostics->serverAddr);
 
-    // extract port
-    index_start = index_stop + 1;
-    index_stop = strchr(index_start, '/');
-    char port_str[10] = {0};
-    strncpy(port_str, index_start, index_stop - index_start);
-    port_str[index_stop - index_start + 1] = '\0';
-    diagnostics->port = atoi(port_str);
-    printf("port = %d", diagnostics->port);
+    // // extract port
+    // index_start = index_stop + 1;
+    // index_stop = strchr(index_start, '/');
+    // char port_str[10] = {0};
+    // strncpy(port_str, index_start, index_stop - index_start);
+    // port_str[index_stop - index_start + 1] = '\0';
+    // diagnostics->port = atoi(port_str);
+    // printf("port = %d", diagnostics->port);
 
-    // extract path
-    index_start = index_stop;
-    strcpy(diagnostics->client.ser_filepath, index_start);
-    printf("path = %s", diagnostics->client.ser_filepath);
+    // // extract path
+    // index_start = index_stop;
+    // strcpy(diagnostics->client.ser_filepath, index_start);
+    // printf("path = %s", diagnostics->client.ser_filepath);
 
-    // extract filename
-    strcpy(diagnostics->client.ser_filename, OCPP_LOGS_FILENAME);
-    printf("filename = %s", diagnostics->client.ser_filename);
+    // // extract filename
+    // strcpy(diagnostics->client.ser_filename, OCPP_LOGS_FILENAME);
+    // printf("filename = %s", diagnostics->client.ser_filename);
 
-    // 创建诊断日志线程
-    pthread_t ptid_diagnostics;
-    if (pthread_create(&ptid_diagnostics, NULL, ocpp_chargePoint_diagnostics_upload_thread, (void *)diagnostics) == -1)
-    {
-        printf("create diagnostics upload thread fail");
-    }
-    pthread_detach(ptid_diagnostics);
+    // // 创建诊断日志线程
+    // pthread_t ptid_diagnostics;
+    // if (pthread_create(&ptid_diagnostics, NULL, ocpp_chargePoint_diagnostics_upload_thread, (void *)diagnostics) == -1)
+    // {
+    //     printf("create diagnostics upload thread fail");
+    // }
+    // pthread_detach(ptid_diagnostics);
 
-    getDiagnostics_conf.fileNameIsUse = 1;
-    strncpy(getDiagnostics_conf.fileName, OCPP_LOGS_FILENAME, 256);
+    // getDiagnostics_conf.fileNameIsUse = 1;
+    // strncpy(getDiagnostics_conf.fileName, OCPP_LOGS_FILENAME, 256);
 
-    char *message = ocpp_package_prepare_GetDiagnostics_Response(uniqueId, &getDiagnostics_conf);
-    enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
-    if (message)
-    {
-        free(message);
-    }
+    // char *message = ocpp_package_prepare_GetDiagnostics_Response(uniqueId, &getDiagnostics_conf);
+    // enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
+    // if (message)
+    // {
+    //     free(message);
+    // }
 }
 
 /**
@@ -1343,7 +1350,6 @@ void ocpp_chargePoint_manageSetChargingProfileRequest(const char *uniqueId, ocpp
     enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
 }
 
-
 /**
  * @description:
  * @param {char *} uniqueId
@@ -1365,6 +1371,7 @@ void ocpp_chargePoint_manageUnlockConnectorRequest(const char *uniqueId, ocpp_pa
     }
 }
 
+static bool isFirmwareThreadRunning = false;
 /**
  * @description: 固件更新线程
  * @param
@@ -1373,52 +1380,34 @@ void ocpp_chargePoint_manageUnlockConnectorRequest(const char *uniqueId, ocpp_pa
  */
 void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
 {
-
-    ocpp_chargePoint_UpdateFirmware_t *UpdateFirmware = (ocpp_chargePoint_UpdateFirmware_t *)arg;
-
+    ocpp_package_UpdateFirmware_req_t *UpdateFirmware = (ocpp_package_UpdateFirmware_req_t *)arg;
+    printf("url = %s\n", UpdateFirmware->location);
     int retries = 0;
-    struct hostent *hp;
-    char server_filepath_name[256] = {0};
-
-    for (; true;)
+    bool isStopAllTransaction = false;
+    bool downloadstatus = false;
+    int connector = 0;
+    struct tm retrieveDate;
+    memset(&retrieveDate, 0, sizeof(struct tm));
+    strptime(UpdateFirmware->retrieveDate, "%Y-%m-%dT%H:%M:%S.000Z", &retrieveDate);
+    // 计算目标时间的时间戳
+    time_t firmwareTime = mktime(&retrieveDate);
+    int secondsToWait = 0;
+    time_t currentTime = 0;
+    while (1)
     {
-
         if (retries >= UpdateFirmware->retries)
         {
-            ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED;
-            ocpp_chargePoint_sendFirmwareStatusNotification_Req();
             break;
         }
-
-        time_t now;
-        time(&now);
-        struct tm retrieveDate;
-        strptime(UpdateFirmware->retrieveDate, "%Y-%m-%dT%H:%M:%S", &retrieveDate);
-        time_t upDateTime = mktime(&retrieveDate);
-
-        // 等待到达更新时间
-        printf("等待到达更新时间\n");
-        for (; difftime(upDateTime, now) > 0;)
-        {
-            usleep(10 * 1000 * 1000);
-            time(&now);
-        }
-
         // 如果当前有交易,则结束交易
-        printf("如果当前有交易,则结束交易\n");
-        int connector = 0;
         for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
         {
             if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
             {
-                ocpp_chargePoint->transaction_obj[connector]->isStop = true;
-                ocpp_chargePoint->transaction_obj[connector]->reason = OCPP_PACKAGE_STOP_REASON_SOFTRESET;
+                ocpp_chargePoint->userPushStopButton(ocpp_chargePoint->transaction_obj[connector]->startIdTag, connector, OCPP_PACKAGE_STOP_REASON_SOFTRESET);
             }
         }
-
         // 等待交易停止
-        printf("等待交易停止\n");
-        bool isStopAllTransaction = false;
         while (!isStopAllTransaction)
         {
             for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
@@ -1437,89 +1426,45 @@ void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
             usleep(5 * 1000 * 1000);
         }
 
-        // 连接DNS获取IP地址
-        printf("连接DNS获取IP地址\n");
-        for (; retries < UpdateFirmware->retries; retries++)
+        ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING);
+
+        if (download_file(UpdateFirmware->location, OCPP_FIRMWARE_UPDATA_FILEPATH) == 0)
         {
-            if ((hp = gethostbyname(UpdateFirmware->serverAddr)) != NULL)
-            {
-                break;
-            }
-            else
-            {
-                usleep(UpdateFirmware->retryInterval * 1000 * 1000);
-                printf("DNS error = %s\n", strerror(errno));
-            }
+            downloadstatus = true;
+            ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADED);
+            break;
         }
 
-        // 连接FTP服务器
-        printf("连接FTP服务器\n");
-        for (; retries < UpdateFirmware->retries; retries++)
+        ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED);
+        usleep(UpdateFirmware->retryInterval * 1000 * 1000);
+        // 获取当前时间的时间戳
+        currentTime = time(NULL);
+        // 计算等待时间
+        secondsToWait = firmwareTime - currentTime;
+        if (secondsToWait > 0)
         {
-            if ((UpdateFirmware->client.control_sock = ocpp_ftp_connect_server((char *)hp->h_addr, UpdateFirmware->port)) >= 0)
-            {
-                break;
-            }
-            else
-            {
-                usleep(UpdateFirmware->retryInterval * 1000 * 1000);
-                printf("UpdateFirmware connect FTP server fail\n");
-            }
+            sleep(secondsToWait); // 等待到达升级时间
+            printf("升级时间到达，执行升级流程...\n");
         }
-
-        printf("登录FTP服务器\n");
-        for (; retries < UpdateFirmware->retries; retries++)
+        else
         {
-            if (ocpp_ftp_login_server(UpdateFirmware->client.control_sock, UpdateFirmware->client.usr, UpdateFirmware->client.passwd) >= 0)
-            {
-                break;
-            }
-            else
-            {
-                usleep(UpdateFirmware->retryInterval * 1000 * 1000);
-                printf("UpdateFirmware login ftp server fail\n");
-            }
+            printf("升级时间已过，立即执行升级流程...\n");
         }
-
-        printf("发送固件状态通知\n");
-        if (retries < UpdateFirmware->retries)
-        {
-            ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING;
-            ocpp_chargePoint_sendFirmwareStatusNotification_Req();
-            strcpy(server_filepath_name, UpdateFirmware->client.ser_filepath);
-            strcat(server_filepath_name, UpdateFirmware->client.ser_filename);
-            printf("server_filepath_name = %s\n", server_filepath_name);
-        }
-
-        printf("下载固件软件\n");
-        for (; retries < UpdateFirmware->retries; retries++)
-        {
-            if (ocpp_ftp_down_file(UpdateFirmware->client.control_sock, server_filepath_name, OCPP_FIRMWARE_UPDATA_FILEPATH, 0, 0, CMD_RETR) > 0)
-            {
-                break;
-            }
-            else
-            {
-                usleep(UpdateFirmware->retryInterval * 1000 * 1000);
-                printf("updateFirmware download fail\n");
-            }
-        }
-
-        // 发送固件下载完成通知
-        printf("发送固件下载完成通知\n");
-        if (retries < UpdateFirmware->retries)
-        {
-            ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADED;
-            ocpp_chargePoint_sendFirmwareStatusNotification_Req();
-
-            usleep(5 * 1000 * 1000); // 等待消息发送出去
-            // 重启升级固件
-            system("reboot");
-        }
+        retries++;
     }
-
-    free(UpdateFirmware);
-    return NULL;
+    if (downloadstatus)
+    {
+        usleep(2 * 1000 * 1000); // 等待消息发送出去
+        ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_INSTALLING);
+        usleep(3 * 1000 * 1000); // 等待消息发送出去
+        system("reboot");
+    }
+    if (UpdateFirmware)
+    {
+        free(UpdateFirmware);
+    }
+    isFirmwareThreadRunning = false;
+    return;
 }
 
 /**
@@ -1530,78 +1475,45 @@ void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
  */
 void ocpp_chargePoint_manageUpdateFirmwareRequest(const char *uniqueId, ocpp_package_UpdateFirmware_req_t updateFirmware_req)
 {
-
-    ocpp_package_UpdateFirmware_conf_t updateFirmware_conf;
-    memset(&updateFirmware_conf, 0, sizeof(updateFirmware_conf));
-
-    ocpp_chargePoint_UpdateFirmware_t *UpdateFirmware = (ocpp_chargePoint_UpdateFirmware_t *)calloc(1, sizeof(ocpp_chargePoint_UpdateFirmware_t));
-
-    UpdateFirmware->retries = 3;
-    if (updateFirmware_req.retriesIsUse)
-        UpdateFirmware->retries = updateFirmware_req.retries;
-
-    UpdateFirmware->retryInterval = 120;
-    if (updateFirmware_req.retryIntervalIsUse)
-        UpdateFirmware->retryInterval = updateFirmware_req.retryInterval;
-
-    strncpy(UpdateFirmware->retrieveDate, updateFirmware_req.retrieveDate, 32);
-
-    //"location":"ftp://0209GCpBn7:523Fw6FS@f1.iot17.com:8183/smart/2681b667733cd919e8iq55/diagnostics/1686016382951893/",
-    char *index_start = NULL;
-    char *index_stop = NULL;
-
-    // extract username
-    index_start = strchr(updateFirmware_req.location, '/') + 2;
-    index_stop = strchr(index_start, ':');
-    strncpy(UpdateFirmware->client.usr, index_start, index_stop - index_start);
-    UpdateFirmware->client.usr[index_stop - index_start + 1] = '\0';
-    printf("client.usr = %s\n", UpdateFirmware->client.usr);
-
-    // extract password
-    index_start = index_stop + 1;
-    index_stop = strchr(index_start, '@');
-    strncpy(UpdateFirmware->client.passwd, index_start, index_stop - index_start);
-    UpdateFirmware->client.passwd[index_stop - index_start + 1] = '\0';
-    printf("client.passwd = %s\n", UpdateFirmware->client.passwd);
-
-    // extract server address
-    index_start = index_stop + 1;
-    index_stop = strchr(index_start, ':');
-    strncpy(UpdateFirmware->serverAddr, index_start, index_stop - index_start);
-    UpdateFirmware->serverAddr[index_stop - index_start + 1] = '\0';
-    printf("serverAddr = %s\n", UpdateFirmware->serverAddr);
-
-    // extract port
-    index_start = index_stop + 1;
-    index_stop = strchr(index_start, '/');
-    char port_str[10] = {0};
-    strncpy(port_str, index_start, index_stop - index_start);
-    port_str[index_stop - index_start + 1] = '\0';
-    UpdateFirmware->port = atoi(port_str);
-    printf("port = %d\n", UpdateFirmware->port);
-
-    // extract path
-    index_start = index_stop;
-    strcpy(UpdateFirmware->client.ser_filepath, index_start);
-    printf("path = %s\n", UpdateFirmware->client.ser_filepath);
-
-    // extract filename
-    strcpy(UpdateFirmware->client.ser_filename, OCPP_LOGS_FILENAME);
-    printf("filename = %s\n", UpdateFirmware->client.ser_filename);
-
-    pthread_t tid_firmware;
-    if (pthread_create(&tid_firmware, NULL, ocpp_chargePoint_UpdateFirmware_thread, (void *)UpdateFirmware) == -1)
+    if (uniqueId == NULL)
     {
-        printf("create firware thread fail\n");
+        return;
     }
-    pthread_detach(tid_firmware);
-
-    char *message = ocpp_package_prepare_UpdateFirmware_Response(uniqueId, &updateFirmware_conf);
-
-    enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
-    if (message)
+    // 在需要创建线程的地方
+    if (!isFirmwareThreadRunning)
     {
-        free(message);
+        ocpp_package_UpdateFirmware_req_t *updateFirmware_conf = malloc(sizeof(ocpp_package_UpdateFirmware_req_t));
+        memcpy(updateFirmware_conf, &updateFirmware_req, sizeof(ocpp_package_UpdateFirmware_req_t));
+
+        if (!updateFirmware_conf->retriesIsUse || updateFirmware_conf->retries == 0)
+        {
+            updateFirmware_conf->retries = 1;
+        }
+        else
+        {
+            updateFirmware_conf->retries = updateFirmware_conf->retries;
+        }
+        if (!updateFirmware_conf->retryIntervalIsUse || updateFirmware_conf->retryInterval == 0)
+        {
+            updateFirmware_conf->retryInterval = 120;
+        }
+
+        pthread_t tid_firmware;
+        if (pthread_create(&tid_firmware, NULL, ocpp_chargePoint_UpdateFirmware_thread, (void *)updateFirmware_conf) == -1)
+        {
+            printf("create firmware thread fail\n");
+        }
+        else
+        {
+            ocpp_package_prepare_Status_Req(uniqueId, 0);
+            isFirmwareThreadRunning = true;
+            pthread_detach(tid_firmware);
+        }
+    }
+    else
+    {
+        ocpp_package_prepare_Status_Req(uniqueId, OCPP_PACKAGE_CONFIGURATION_STATUS_REJECTED);
+        printf("Firmware thread is already running.\n");
     }
 }
 
@@ -3375,8 +3287,8 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
 
         json_object *reservationId_obj = json_object_object_get(payload_obj, "reservationId");
         cancelReservation_req.reservationId = json_object_get_int(reservationId_obj);
-
-        ocpp_chargePoint_manageCancelReservationRequest(uniqueId_str, cancelReservation_req);
+        ocpp_package_prepare_Status_Req(uniqueId_str,0);
+        //ocpp_chargePoint_manageCancelReservationRequest(uniqueId_str, cancelReservation_req);
     }
     break;
 
@@ -3450,7 +3362,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         ocpp_package_ClearChargingProfile_req_t clearChargingProfile_req;
         memset(&clearChargingProfile_req, 0, sizeof(clearChargingProfile_req));
 
-        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId_str,3);
+        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
 
         // json_object *id_obj = json_object_object_get(payload_obj, "id");
         // json_object *connectorId_obj = json_object_object_get(payload_obj, "connectorId");
@@ -3493,7 +3405,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
 
     case OCPP_PACKAGE_DATATRANSFER:
     {
-        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId_str,0);
+        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
     }
     break;
 
@@ -3502,7 +3414,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         if (ocpp_chargePoint_checkGetCompositeSchedule_Callpackage(uniqueId_str, payload_obj))
             return;
 
-        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId_str,3);
+        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
         // ocpp_package_GetCompositeSchedule_req_t getCompositeSchedule_req;
         // memset(&getCompositeSchedule_req, 0, sizeof(getCompositeSchedule_req));
 
@@ -3586,7 +3498,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
     {
         if (ocpp_chargePoint_checkGetDiagnostics_Callpackage(uniqueId_str, payload_obj))
             return;
-        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId_str,3);
+        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
         // ocpp_package_GetDiagnostics_req_t getDiagnostics_req;
         // memset(&getDiagnostics_req, 0, sizeof(getDiagnostics_req));
 
@@ -3697,7 +3609,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         if (ocpp_chargePoint_checkReserveNow_Callpackage(uniqueId_str, payload_obj))
             return;
 
-        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId_str,3);
+        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
         // ocpp_package_ReserveNow_req_t reserveNow_req;
         // memset(&reserveNow_req, 0, sizeof(reserveNow_req));
 
@@ -3959,8 +3871,8 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
                 }
             }
         }
-        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId_str,3);
- //       ocpp_chargePoint_manageSetChargingProfileRequest(uniqueId_str, &setChargingProfile_req);
+        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
+        //       ocpp_chargePoint_manageSetChargingProfileRequest(uniqueId_str, &setChargingProfile_req);
         if (setChargingProfile_req.csChargingProfiles.chargingSchedule.chargingSchedulePeriod != NULL)
         {
             free(setChargingProfile_req.csChargingProfiles.chargingSchedule.chargingSchedulePeriod);
@@ -4011,7 +3923,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         memset(&unlockConnector_req, 0, sizeof(unlockConnector_req));
 
         unlockConnector_req.connectorId = json_object_get_int(connectorId_obj);
-        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId_str,3);
+        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
         // ocpp_chargePoint_manageUnlockConnectorRequest(uniqueId_str, unlockConnector_req);
     }
     break;
@@ -4020,35 +3932,34 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
     {
         if (ocpp_chargePoint_checkUpdateFirmware_Callpackage(uniqueId_str, payload_obj))
             return;
-        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId_str,3);
-        // ocpp_package_UpdateFirmware_req_t updateFirmware_req;
-        // memset(&updateFirmware_req, 0, sizeof(updateFirmware_req));
 
-        // json_object *location_obj = json_object_object_get(payload_obj, "location");
-        // json_object *retries_obj = json_object_object_get(payload_obj, "retries");
-        // json_object *retrieveDate_obj = json_object_object_get(payload_obj, "retrieveDate");
-        // json_object *retryInterval_obj = json_object_object_get(payload_obj, "retryInterval");
+        ocpp_package_UpdateFirmware_req_t updateFirmware_req;
+        memset(&updateFirmware_req, 0, sizeof(updateFirmware_req));
+        json_object *location_obj = json_object_object_get(payload_obj, "location");
+        json_object *retries_obj = json_object_object_get(payload_obj, "retries");
+        json_object *retrieveDate_obj = json_object_object_get(payload_obj, "retrieveDate");
+        json_object *retryInterval_obj = json_object_object_get(payload_obj, "retryInterval");
 
-        // const char *location_str = json_object_get_string(location_obj);
-        // const char *retrieveDate_str = json_object_get_string(retrieveDate_obj);
-        // strncpy(updateFirmware_req.location, location_str, 256);
-        // strncpy(updateFirmware_req.retrieveDate, retrieveDate_str, 32);
+        const char *location_str = json_object_get_string(location_obj);
+        const char *retrieveDate_str = json_object_get_string(retrieveDate_obj);
+        strncpy(updateFirmware_req.location, location_str, 256);
+        strncpy(updateFirmware_req.retrieveDate, retrieveDate_str, 32);
 
-        // updateFirmware_req.retriesIsUse = 0;
-        // if (retries_obj != NULL)
-        // {
-        //     updateFirmware_req.retriesIsUse = 1;
-        //     updateFirmware_req.retries = json_object_get_int(retries_obj);
-        // }
+        updateFirmware_req.retriesIsUse = 0;
+        if (retries_obj != NULL)
+        {
+            updateFirmware_req.retriesIsUse = 1;
+            updateFirmware_req.retries = json_object_get_int(retries_obj);
+        }
 
-        // updateFirmware_req.retryIntervalIsUse = 0;
-        // if (retryInterval_obj != NULL)
-        // {
-        //     updateFirmware_req.retryIntervalIsUse = 1;
-        //     updateFirmware_req.retryInterval = json_object_get_int(retryInterval_obj);
-        // }
+        updateFirmware_req.retryIntervalIsUse = 0;
+        if (retryInterval_obj != NULL)
+        {
+            updateFirmware_req.retryIntervalIsUse = 1;
+            updateFirmware_req.retryInterval = json_object_get_int(retryInterval_obj);
+        }
 
-        // ocpp_chargePoint_manageUpdateFirmwareRequest(uniqueId_str, updateFirmware_req);
+        ocpp_chargePoint_manageUpdateFirmwareRequest(uniqueId_str, updateFirmware_req);
     }
     break;
 
@@ -4139,7 +4050,7 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
     {
         if (ocpp_chargePoint_checkDiagnosticsStatusNotification_callResultPackage(uniqueId_str, payload_obj))
             return;
-        ocpp_package_prepare_ConfigurationStatus_Req(uniqueId_str,3);
+        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
     }
     break;
 
@@ -4486,7 +4397,7 @@ static void ocpp_chargePoint_CallError_Handler(json_object *jobj, enum OCPP_PACK
         break;
 
     case OCPP_PACKAGE_DATATRANSFER:
-        
+
         break;
 
     case OCPP_PACKAGE_DIAGNOSTICS_STATUS_NOTIFICATION:

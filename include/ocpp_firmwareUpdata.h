@@ -13,31 +13,12 @@
 extern "C" {
 #endif
 
+#include <stdio.h>
+#include "curl/curl.h"
 
 
-typedef struct{
-
-    char anyURI[256];
-    int retries;
-    char retrieveDate[32];
-    int retryInterval;
-
-    char usr[32];
-    char passwd[32];
-    char ser_filepath[512];
-    char ser_filename[64];
-    char new_filename[64];
-    int control_sock;
- 
-}ocpp_firmwareUpdata_data_t;
-
-
-void * ocpp_firmwareUpdata_thread(void * arg);
-
-enum OCPP_PACKAGE_FIRMWARE_STATUS_E ocpp_firmwareUpdate_getUpdataStatus();
-void ocpp_firmwareUpdate_init();
-
-
+int upload_file(const char *upload_url,const char *local_file_path);
+int download_file(const char *url, const char *save_path);
 
 
 #ifdef __cplusplus

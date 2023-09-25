@@ -26,9 +26,10 @@ extern "C" {
 #define  OCPP_LOGS_FILEPATH               "/app/etc/ocpp_logs.log"          //导出日志存储路径
 #define  OCPP_LOGS_FILENAME               "ocpp_logs.log"                   //日志文件名
 #define  OCPP_LOGS_DATABASE_PATH          "/app/etc/ocpp_logs.db"           //日志数据库路径
-#define  OCPP_FIRMWARE_UPDATA_FILEPATH    "/app/update/EVCM-SD10.tar.gz"    //固件更新文件路径
+#define  OCPP_FIRMWARE_UPDATA_FILEPATH    "/app/core/EVCM-SD10.tar.gz"    //固件更新文件路径
 #define  OCPP_FIRMWARE_UPDATA_FILENAME    "EVCM-SD10.tar.gz"                //更新固件名
 
+#define  OCOO_SSL_CA_PATH                  "ca_cert_path"
 
 #define OCPP_OFFOLINE_FILE_MAX_SIZE       (10 * 1024 * 1024 * 1024)          //10M
 

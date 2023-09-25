@@ -16,7 +16,6 @@ extern "C" {
 #include "ocpp_connect.h"
 #include "ocpp_package.h"
 #include "ocpp_reserve.h"
-#include "ocpp_ftp.h"
 
 
 
@@ -82,38 +81,6 @@ typedef struct{
 	bool isRetransmission;
 	
 }ocpp_chargePoint_offlineDate_t;
-
-
-
-
-//诊断日志对象
-typedef struct{
-	ocpp_ftp_client_t client;
-	int port;                                          //ftp连接端口
-	char serverAddr[32];                               //服务器地址
-	
-	int retries;                                       //重传次数
-	int retryInterval;                                 //间隔
-
-	bool isUseStartTime;
-	char startTime[32];
-
-	bool isUseStopTime;
-	char stopTime[32];
-
-}ocpp_chargePoint_diagnostics_t;
-
-
-//固件更新对象
-typedef struct{
-	ocpp_ftp_client_t client;
-	int port;                                          //ftp连接端口
-	char serverAddr[32];                               //服务器地址
-	int retries;                                       //重传次数
-	int retryInterval;                                 //间隔
-	char retrieveDate[32];                             //更新时间
-
-}ocpp_chargePoint_UpdateFirmware_t;
 
 
 

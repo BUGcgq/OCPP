@@ -265,31 +265,3 @@ void ocpp_AuxiliaryTool_ftoa(float n, char *res, int afterpoint)
         ocpp_AuxiliaryTool_intToStr((int)fpart, res + i + 1, afterpoint);
     }
 }
-
-int isWithinValidity(const char *timeStr)
-{
-    if (timeStr == NULL)
-    {
-        return -1; // 输入为空，直接返回-1
-    }
-
-    struct tm parsedTime = {0};
-
-    // 解析给定时间字符串
-    if (strptime(timeStr, "%Y-%m-%dT%H:%M:%S.000Z", &parsedTime) != NULL)
-    {
-        time_t givenTime = mktime(&parsedTime);
-
-        // 获取当前时间戳
-        time_t currentTime;
-        time(&currentTime);
-
-        // 比较时间戳
-        if (givenTime >= currentTime)
-        {
-            return 0; // 在有效期内
-        }
-    }
-
-    return -1; // 不在有效期内或时间解析失败
-}

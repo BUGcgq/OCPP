@@ -734,7 +734,7 @@ bool ocpp_localAuthorization_List_isValid(const char *idTag)
 	}
 
 	char sql[512];
-	snprintf(sql, sizeof(sql), "SELECT status FROM AuthorizationList WHERE IdTag = '%s';", idTag);
+	snprintf(sql, sizeof(sql), "SELECT status, expiryDate FROM AuthorizationList WHERE IdTag = '%s';", idTag);
 
 	sqlite3_stmt *stmt;
 	int rc = sqlite3_prepare_v2(ocpp_AL, sql, -1, &stmt, NULL);
@@ -748,12 +748,35 @@ bool ocpp_localAuthorization_List_isValid(const char *idTag)
 	if (rc == SQLITE_ROW)
 	{
 		const char *status = (const char *)sqlite3_column_text(stmt, 0);
+		const char *expiryDateStr = (const char *)sqlite3_column_text(stmt, 1);
 		sqlite3_finalize(stmt);
-		return (strcmp(status, "Accepted") == 0); // 如果status为Accepted则返回true，否则返回false
+
+		if (strcmp(status, "Accepted") == 0)
+		{
+			if (expiryDateStr == NULL || strlen(expiryDateStr) == 0)
+			{
+				return true; // 如果 expiryDate 为空，只要 status 是 "Accepted" 就返回 true
+			}
+
+			// 解析 expiryDate
+			struct tm expiryDate;
+			memset(&expiryDate, 0, sizeof(struct tm));
+			strptime(expiryDateStr, "%Y-%m-%dT%H:%M:%S.%fZ", &expiryDate);
+
+			// 获取当前时间
+			time_t currentTime = time(NULL);
+			struct tm *localTime = localtime(&currentTime);
+
+			// 比较时间
+			if (mktime(&expiryDate) > mktime(localTime))
+			{
+				return true; // 在有效期内且 status 为 "Accepted"
+			}
+		}
 	}
 
 	sqlite3_finalize(stmt);
-	return false; // 处理查询结果获取失败的情况
+	return false; // 处理查询结果获取失败的情况或条件不满足的情况
 }
 
 /**
@@ -772,21 +795,3 @@ void ocpp_localAuthorization_init(sqlite3 *ocpp_db)
 		printf("create localAuthorization_List fail\n");
 }
 
-/**
- * @description: main
- * @param:
- * @return: 0-成功,-1-失败
- */
-// int main(void){
-//     printf("main in\n");
-//     sqlite3_open("ocpp.db",&db);
-//     ocpp_localAuthorization_init();
-
-//     ocpp_localAuthorization_cache_record_t cache;
-//     cache.expiryDate = NULL;
-//     strcpy(cache.IdTag,"123456789");
-//     strcpy(cache.parentIdTag,"54321");
-//     cache.status = OCPP_LOCAL_AUTHORIZATION_ACCEPTED;
-//     ocpp_localAuthorization_Cache_insert(&cache);
-
-// }

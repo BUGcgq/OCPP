@@ -1365,23 +1365,18 @@ typedef struct{
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>UpdateFirmware.req
 typedef struct{
-	char location[256];
+	char location[256];//url
 	
 	char retriesIsUse:1;
-	int retries;
+	int retries;//重试次数
 
-	char retrieveDate[32];
+	char retrieveDate[32];//重试时间
 
 	char retryIntervalIsUse:1;
-	int retryInterval;
+	int retryInterval;//重试时间间隔
 
 }ocpp_package_UpdateFirmware_req_t;
 
-//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>UpdateFirmware.conf
-typedef struct{
-	char reserved;            //预留
-
-}ocpp_package_UpdateFirmware_conf_t;
 
 
 
@@ -1461,12 +1456,12 @@ int ocpp_chargePoint_sendStatusNotification_Req(int connector);
 int ocpp_chargePoint_sendFinishing_Req(int connector);
 int ocpp_chargePoint_sendAuthorize_req(const char *const idTag, char *lastUniqueId);
 int ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
-int ocpp_chargePoint_sendFirmwareStatusNotification_Req();
+int ocpp_chargePoint_sendFirmwareStatusNotification_Req(int status);
 void ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_package_GetConfiguration_conf_t *GetConfiguration);
 void ocpp_chargePoint_manageSendLocalList_Req(const char *uniqueId, ocpp_package_SendLocalList_req_t *sendLocalList_req);
 void ocpp_chargePoint_manageRemoteStartTransaction_Req(const char *uniqueId, ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req);
 void ocpp_chargePoint_GetLocalListVersion_Req(const char *uniqueId);
-void ocpp_package_prepare_ConfigurationStatus_Req(char *UniqueId, enum OCPP_PACKAGE_CONFIGURATION_STATUS_E Status);
+void ocpp_package_prepare_Status_Req(char *UniqueId, int status);
 void ocpp_chargePoint_manageTriggerMessageRequest(const char *uniqueId, ocpp_package_TriggerMessage_req_t triggerMessage_req);
 
 char *ocpp_package_prepare_DataTransfer_Request(const char * UniqueId,ocpp_package_DataTransfer_req_t * DataTransfer);
@@ -1483,7 +1478,7 @@ char *ocpp_package_prepare_ReserveNow_Response(const char *UniqueId, ocpp_packag
 char *ocpp_package_prepare_Reset_Response(const char *UniqueId, ocpp_package_Reset_conf_t * Reset);
 char *ocpp_package_prepare_SetChargingProfile_Response(const char *UniqueId, ocpp_package_SetChargingProfile_conf_t * SetChargingProfile);
 char *ocpp_package_prepare_UnlockConnector_Response(const char *UniqueId, ocpp_package_UnlockConnector_conf_t * UnlockConnector);
-char *ocpp_package_prepare_UpdateFirmware_Response(const char *UniqueId, ocpp_package_UpdateFirmware_conf_t * UpdateFirmware);
+
 
 
 char * ocpp_package_prepare_CallError(const char *UniqueId, ocpp_package_CallError_t * callError);
