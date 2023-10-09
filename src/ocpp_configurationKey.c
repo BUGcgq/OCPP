@@ -131,7 +131,7 @@ static void ocpp_ConfiguartionKey_data_init(OCPP_ConfigurationKey_t *OCPP_Config
 	OCPP_ConfigurationKey[OCPP_CK_MeterValuesAlignedData].accessibility = OCPP_ACC_READWRITE;
 	OCPP_ConfigurationKey[OCPP_CK_MeterValuesAlignedData].dataType = OCPP_CK_DT_STRING;
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_MeterValuesAlignedData].type.stringData,
-			"Voltage:Current.Import:Energy.Active.Import.Register:SoC:Current.Offered:Power.Active.Import:Energy.Reactive.Import.Register", 512);
+			"Voltage,Current.Import,Energy.Active.Import.Register,SoC,Current.Offered,Power.Active.Import,Energy.Reactive.Import.Register", 512);
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_MeterValuesAlignedData].key,
 			ocpp_configurationKeyText[OCPP_CK_MeterValuesAlignedData], 64);
 
@@ -150,7 +150,7 @@ static void ocpp_ConfiguartionKey_data_init(OCPP_ConfigurationKey_t *OCPP_Config
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_MeterValuesSampledData].key,
 			ocpp_configurationKeyText[OCPP_CK_MeterValuesSampledData], 64);
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_MeterValuesSampledData].type.stringData,
-			"Voltage:Current.Import:Energy.Active.Import.Register:SoC:Current.Offered:Power.Active.Import:Energy.Reactive.Import.Register", 512);
+			"Voltage,Current.Import,Energy.Active.Import.Register,SoC,Current.Offered,Power.Active.Import,Energy.Reactive.Import.Register", 512);
 
 	// 9.1.16. MeterValuesSampledDataMaxLen
 	OCPP_ConfigurationKey[OCPP_CK_MeterValuesSampledDataMaxLength].isUsed = true;
@@ -172,7 +172,7 @@ static void ocpp_ConfiguartionKey_data_init(OCPP_ConfigurationKey_t *OCPP_Config
 	OCPP_ConfigurationKey[OCPP_CK_MinimumStatusDuration].isUsed = true;
 	OCPP_ConfigurationKey[OCPP_CK_MinimumStatusDuration].accessibility = OCPP_ACC_READWRITE;
 	OCPP_ConfigurationKey[OCPP_CK_MinimumStatusDuration].dataType = OCPP_CK_DT_INTEGER;
-	OCPP_ConfigurationKey[OCPP_CK_MinimumStatusDuration].type.intData = 60;
+	OCPP_ConfigurationKey[OCPP_CK_MinimumStatusDuration].type.intData = 600;
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_MinimumStatusDuration].key,
 			ocpp_configurationKeyText[OCPP_CK_MinimumStatusDuration], 64);
 	// 9.1.19. NumberOfConnectors
@@ -228,7 +228,7 @@ static void ocpp_ConfiguartionKey_data_init(OCPP_ConfigurationKey_t *OCPP_Config
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_StopTxnAlignedData].key,
 			ocpp_configurationKeyText[OCPP_CK_StopTxnAlignedData], 64);
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_StopTxnAlignedData].type.stringData,
-			"Voltage:Current.Import:Energy.Active.Import.Register:SoC:Current.Offered:Power.Active.Import:Energy.Reactive.Import.Register", 512);
+			"Voltage,Current.Import,Energy.Active.Import.Register,SoC,Current.Offered,Power.Active.Import,Energy.Reactive.Import.Register", 512);
 
 	// 9.1.26. StopTxnAlignedDataMaxLength
 	OCPP_ConfigurationKey[OCPP_CK_StopTxnAlignedDataMaxLength].isUsed = true;
@@ -244,7 +244,7 @@ static void ocpp_ConfiguartionKey_data_init(OCPP_ConfigurationKey_t *OCPP_Config
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_StopTxnSampledData].key,
 			ocpp_configurationKeyText[OCPP_CK_StopTxnSampledData], 64);
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_StopTxnSampledData].type.stringData,
-			"Voltage:Current.Import:Energy.Active.Import.Register:SoC", 512);
+			"Voltage,Current.Import,Energy.Active.Import.Register,SoC", 512);
 
 	// 9.1.28. StopTxnSampledDataMaxLength
 	OCPP_ConfigurationKey[OCPP_CK_StopTxnSampledDataMaxLength].isUsed = true;
@@ -360,7 +360,7 @@ static void ocpp_ConfiguartionKey_data_init(OCPP_ConfigurationKey_t *OCPP_Config
 	OCPP_ConfigurationKey[OCPP_CK_MaxChargingProfilesInstalled].isUsed = true;
 	OCPP_ConfigurationKey[OCPP_CK_MaxChargingProfilesInstalled].accessibility = OCPP_ACC_READONLY;
 	OCPP_ConfigurationKey[OCPP_CK_MaxChargingProfilesInstalled].dataType = OCPP_CK_DT_INTEGER;
-	OCPP_ConfigurationKey[OCPP_CK_MaxChargingProfilesInstalled].type.intData = OCPP_CK_MaxChargingProfilesInstalled;
+	OCPP_ConfigurationKey[OCPP_CK_MaxChargingProfilesInstalled].type.intData = 20;
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_MaxChargingProfilesInstalled].key,
 			ocpp_configurationKeyText[OCPP_CK_MaxChargingProfilesInstalled], 64);
 }
@@ -440,7 +440,7 @@ static int ocpp_ConfigurationKey_default_init(OCPP_ConfigurationKey_t *OCPP_Conf
  * @param
  * @return
  */
-void ocpp_ConfigurationKey_deinit(void)
+int ocpp_ConfigurationKey_deinit(void)
 {
 	if (ocpp_CK == NULL)
 	{

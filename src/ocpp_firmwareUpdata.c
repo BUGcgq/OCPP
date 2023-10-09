@@ -8,8 +8,11 @@
 #include <string.h>
 #include <errno.h>
 #include <netdb.h>
-
+#include <stdbool.h>
+#include "ocpp_package.h"
 #include "ocpp_firmwareUpdata.h"
+#include "ocpp_chargePoint.h"
+extern ocpp_chargePoint_t *ocpp_chargePoint;
 // 通用文件下载函数，支持HTTP和FTP
 int download_file(const char *url, const char *local_file_path)
 {
@@ -64,61 +67,180 @@ int download_file(const char *url, const char *local_file_path)
 	return 0;
 }
 
-// 通用文件上传函数，支持HTTP和FTP
-int upload_file(const char *upload_url, const char *local_file_path)
+int upload_file(const char *url, const char *local_file_path)
 {
-	if (local_file_path == NULL || upload_url == NULL)
+	if (url == NULL || local_file_path == NULL)
 	{
-		fprintf(stderr, "错误:本地文件路径和上传URL不能为空。\n");
-		return -1; // 返回错误代码，表示参数无效
-	}
-
-	CURL *curl;
-	FILE *file;
-
-	curl_global_init(CURL_GLOBAL_ALL);
-	curl = curl_easy_init();
-
-	if (curl)
-	{
-		curl_easy_setopt(curl, CURLOPT_URL, upload_url);
-
-		// 设置FTP上传选项
-		if (strstr(upload_url, "ftp://"))
-		{
-			curl_easy_setopt(curl, CURLOPT_UPLOAD, -1L);
-			curl_easy_setopt(curl, CURLOPT_READDATA, fopen(local_file_path, "rb"));
-		}
-
-		CURLcode res = curl_easy_perform(curl);
-
-		if (res == CURLE_OK)
-		{
-			printf("文件上传完成.\n");
-		}
-		else
-		{
-			fprintf(stderr, "上传失败: %s\n", curl_easy_strerror(res));
-			return -1;
-		}
-
-		curl_easy_cleanup(curl);
-	}
-	else
-	{
-		fprintf(stderr, "初始化libcurl失败\n");
+		fprintf(stderr, "错误:URL和路径不能为空。\n");
 		return -1;
 	}
 
-	curl_global_cleanup();
-	return 0;
+	CURL *curl = curl_easy_init();
+	if (curl == NULL)
+	{
+		fprintf(stderr, "错误:初始化libcurl失败。\n");
+		return -1;
+	}
+
+	curl_easy_setopt(curl, CURLOPT_URL, url);
+
+	FILE *file = fopen(local_file_path, "rb");
+	if (file == NULL)
+	{
+		fprintf(stderr, "错误：打开本地文件失败。\n");
+		curl_easy_cleanup(curl);
+		return -1;
+	}
+
+	struct curl_slist *headers = NULL;
+	headers = curl_slist_append(headers, "Content-Type: application/octet-stream");
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+	long size = 0; // 文件大小
+
+	// 根据URL协议选择上传方式
+	if (strncmp(url, "ftp://", 6) == 0) // FTP上传
+	{
+		curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L); // 启用上传模式
+		curl_easy_setopt(curl, CURLOPT_READDATA, file);
+	}
+	else if (strncmp(url, "http://", 7) == 0 || strncmp(url, "https://", 8) == 0) // HTTP(S)上传
+	{
+		fseek(file, 0, SEEK_END);
+		size = ftell(file);
+		fseek(file, 0, SEEK_SET);
+
+		// 设置HTTP请求方法为POST
+		curl_easy_setopt(curl, CURLOPT_POST, 1L);
+
+		// 设置HTTP请求体为本地文件内容
+		curl_easy_setopt(curl, CURLOPT_READDATA, file);
+		curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)size);
+	}
+	else
+	{
+		fprintf(stderr, "错误：不支持的协议。\n");
+		fclose(file);
+		curl_easy_cleanup(curl);
+		return -1;
+	}
+
+	CURLcode res = curl_easy_perform(curl);
+
+	curl_slist_free_all(headers);
+	fclose(file);
+	curl_easy_cleanup(curl);
+
+	if (res == CURLE_OK)
+	{
+		printf("文件上传完成。\n");
+		return 0;
+	}
+	else
+	{
+		fprintf(stderr, "上传失败: %s\n", curl_easy_strerror(res));
+		return -1;
+	}
+}
+/**
+ * @description: 固件更新线程
+ * @param
+ * @param
+ * @return
+ */
+void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
+{
+	ocpp_package_UpdateFirmware_req_t *UpdateFirmware = (ocpp_package_UpdateFirmware_req_t *)arg;
+	printf("url = %s\n", UpdateFirmware->location);
+	int retries = 0;
+	bool isStopAllTransaction = false;
+	bool downloadstatus = false;
+	int connector = 0;
+	struct tm retrieveDate;
+	memset(&retrieveDate, 0, sizeof(struct tm));
+	strptime(UpdateFirmware->retrieveDate, "%Y-%m-%dT%H:%M:%S.000Z", &retrieveDate);
+	// 计算目标时间的时间戳
+	time_t firmwareTime = mktime(&retrieveDate);
+	int secondsToWait = 0;
+	time_t currentTime = 0;
+	while (1)
+	{
+		if (retries >= UpdateFirmware->retries)
+		{
+			break;
+		}
+		// 如果当前有交易,则结束交易
+		for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
+		{
+			if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
+			{
+				ocpp_chargePoint->userPushStopButton(ocpp_chargePoint->transaction_obj[connector]->startIdTag, connector, OCPP_PACKAGE_STOP_REASON_SOFTRESET);
+			}
+		}
+		// 等待交易停止
+		while (!isStopAllTransaction)
+		{
+			for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
+			{
+				if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
+				{
+					break;
+				}
+			}
+
+			if (connector > ocpp_chargePoint->numberOfConnector)
+			{
+				isStopAllTransaction = true;
+			}
+
+			usleep(5 * 1000 * 1000);
+		}
+		ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING;
+		ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING);
+
+		if (download_file(UpdateFirmware->location, OCPP_FIRMWARE_UPDATA_FILEPATH) == 0)
+		{
+			downloadstatus = true;
+			ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADED;
+			ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADED);
+			break;
+		}
+		else
+		{
+			ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED;
+			ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED);
+		}
+		retries++;
+		usleep(UpdateFirmware->retryInterval * 1000 * 1000);
+	}
+	// 获取当前时间的时间戳
+	currentTime = time(NULL);
+	// 计算等待时间
+	secondsToWait = firmwareTime - currentTime;
+	if (secondsToWait > 0)
+	{
+		sleep(secondsToWait); // 等待到达升级时间
+	}
+	if (downloadstatus)
+	{
+		usleep(2 * 1000 * 1000); // 等待消息发送出去
+		ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_INSTALLING);
+		usleep(3 * 1000 * 1000); // 等待消息发送出去
+		system("reboot");
+	}
+	if (UpdateFirmware)
+	{
+		free(UpdateFirmware);
+	}
+	ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState == OCPP_PACKAGE_FIRMWARE_STATUS_IDLE;
+	return NULL;
 }
 
-//test
-// int main()
-// {
-// 	const char *url = "http://10.100.70.120/EVCM-SD10.tar.gz"; // HTTP URL
-// 	const char *save_path = "/app/core/EVCM-SD10.tar.gz";	   // 本地保存路径
+// test
+//  int main()
+//  {
+//  	const char *url = "http://10.100.70.120/EVCM-SD10.tar.gz"; // HTTP URL
+//  	const char *save_path = "/app/core/EVCM-SD10.tar.gz";	   // 本地保存路径
 
 // 	int result = download_file(url, save_path);
 

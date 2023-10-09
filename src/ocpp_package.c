@@ -1,11 +1,14 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <unistd.h>
 #include "ocpp_package.h"
 #include <json-c/json.h>
 #include "ocpp_order.h"
 #include "ocpp_chargePoint.h"
+#include "ocpp_configurationKey.h"
+#include "ocpp_auxiliaryTool.h"
+#include "ocpp_list.h"
 extern ocpp_chargePoint_t *ocpp_chargePoint;
 /**
  * @description: 创建Authorize.req消息
@@ -149,51 +152,11 @@ int ocpp_chargePoint_sendBootNotification_req()
 }
 
 /**
- * @description: 创建DataTransfer.req消息
- * @param:
- * @return:
- */
-char *ocpp_package_prepare_DataTransfer_Request(const char *UniqueId, ocpp_package_DataTransfer_req_t *DataTransfer)
-{
-    if (UniqueId == NULL || DataTransfer == NULL)
-    {
-        return NULL;
-    }
-    struct json_object *root_object = json_object_new_array();
-
-    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
-    json_object_array_add(root_object, json_object_new_string("DataTransfer"));
-
-    struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "vendorId", json_object_new_string(DataTransfer->vendorId));
-
-    if (DataTransfer->messageIdIsUse)
-    {
-        json_object_object_add(payload_object, "messageId", json_object_new_string(DataTransfer->messageId));
-    }
-
-    if (DataTransfer->dataIsUse && DataTransfer->dataLen > 0)
-    {
-        json_object_object_add(payload_object, "data", json_object_new_string_len(DataTransfer->data, DataTransfer->dataLen));
-    }
-
-    json_object_array_add(root_object, payload_object);
-
-    const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
-
-    json_object_put(root_object);
-
-    return message;
-}
-
-/**
  * @description: 创建DiagnosticsStatusNotification.req消息
  * @param:
  * @return:
  */
-int ocpp_chargePoint_sendDiagnosticsStatusNotification_Req()
+int ocpp_chargePoint_sendDiagnosticsStatusNotification_Req(int status)
 {
 
     char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
@@ -208,13 +171,11 @@ int ocpp_chargePoint_sendDiagnosticsStatusNotification_Req()
     json_object_array_add(root_object, json_object_new_string("DiagnosticsStatusNotification"));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_DiagnosticsStatus_text[ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_DiagnosticsStatus_text[status]));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-
-    json_object_put(root_object);
 
     enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_DIAGNOSTICS_STATUS_NOTIFICATION);
 
@@ -222,7 +183,7 @@ int ocpp_chargePoint_sendDiagnosticsStatusNotification_Req()
 
     free(uniqueId);
 
-    return NULL;
+    return 0;
 }
 
 /**
@@ -307,9 +268,9 @@ int ocpp_chargePoint_sendMeterValues(int connector, int transactionId)
     if (MeterValuesSampledData != NULL)
     {
         char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
-        MeterValuesSampledDataCnt = ocpp_AuxiliaryTool_charCounter(MeterValuesSampledData, ':') + 1;
+        MeterValuesSampledDataCnt = ocpp_AuxiliaryTool_charCounter(MeterValuesSampledData, ',') + 1;
         ocpp_package_MeterValues_M_SampledValue sampledValue[MeterValuesSampledDataCnt];
-        char *token = strtok(MeterValuesSampledData, ":");
+        char *token = strtok(MeterValuesSampledData, ",");
         char *timestamp = ocpp_AuxiliaryTool_GetCurrentTime();
         struct json_object *root_object = json_object_new_array();
         if (root_object == NULL || uniqueId == NULL || timestamp == NULL)
@@ -559,7 +520,7 @@ int ocpp_chargePoint_sendMeterValues(int connector, int transactionId)
                 json_object_object_add(sampledValue_object, "unit", json_object_new_string(sampledValue[i].unit));
 
             json_object_array_add(sampledValue_array, sampledValue_object);
-            token = strtok(NULL, ":");
+            token = strtok(NULL, ",");
             i++;
         }
         json_object_object_add(meterValue_object, "sampledValue", sampledValue_array);
@@ -588,18 +549,17 @@ int ocpp_chargePoint_sendMeterValues(int connector, int transactionId)
 int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *lastUniqueId)
 {
     char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
-    if (uniqueId != NULL)
-    {
-        strncpy(lastUniqueId, uniqueId, 40);
-    }
-
     char *timestamp = ocpp_AuxiliaryTool_GetCurrentTime();
-    int metervalue = (int)ocpp_chargePoint->getCurrentMeterValues(connector);
     struct json_object *root_object = json_object_new_array();
     if (root_object == NULL || uniqueId == NULL || timestamp == NULL)
     {
         return -1;
     }
+
+    memcpy(lastUniqueId, uniqueId, 40);
+
+    int metervalue = (int)ocpp_chargePoint->getCurrentMeterValues(connector);
+
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
     json_object_array_add(root_object, json_object_new_string(uniqueId));
     json_object_array_add(root_object, json_object_new_string("StartTransaction"));
@@ -672,47 +632,6 @@ int ocpp_chargePoint_sendStatusNotification_Req(int connector)
 
     return 0;
 }
-int ocpp_chargePoint_sendFinishing_Req(int connector)
-{
-    char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
-    struct json_object *root_object = json_object_new_array();
-    if (root_object == NULL || uniqueId == NULL)
-    {
-        return -1;
-    }
-    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
-    json_object_array_add(root_object, json_object_new_string(uniqueId));
-    json_object_array_add(root_object, json_object_new_string("StatusNotification"));
-
-    struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "connectorId", json_object_new_int(connector));
-    json_object_object_add(payload_object, "errorCode", json_object_new_string(ocpp_package_ChargePointErrorCode_text[ocpp_chargePoint->connector[connector]->errorCode]));
-    json_object_object_add(payload_object, "status", json_object_new_string("Finishing"));
-
-    if (ocpp_chargePoint->connector[connector]->timestampIsUse)
-        json_object_object_add(payload_object, "timestamp", json_object_new_string(ocpp_chargePoint->connector[connector]->timestamp));
-
-    if (ocpp_chargePoint->connector[connector]->infoIsUse)
-        json_object_object_add(payload_object, "info", json_object_new_string(ocpp_chargePoint->connector[connector]->info));
-
-    if (ocpp_chargePoint->connector[connector]->vendorIdIsUse)
-        json_object_object_add(payload_object, "vendorId", json_object_new_string(ocpp_chargePoint->connector[connector]->vendorId));
-
-    if (ocpp_chargePoint->connector[connector]->vendorErrorCodeIsUse)
-        json_object_object_add(payload_object, "vendorErrorCode", json_object_new_string(ocpp_chargePoint->connector[connector]->vendorErrorCode));
-
-    json_object_array_add(root_object, payload_object);
-
-    const char *json_string = json_object_to_json_string(root_object);
-
-    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_STATUS_NOTIFICATION);
-
-    json_object_put(root_object);
-
-    free(uniqueId);
-
-    return 0;
-}
 /**
  * @description:
  * @param:
@@ -720,11 +639,10 @@ int ocpp_chargePoint_sendFinishing_Req(int connector)
  */
 int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *idTag, int transactionId, const char *lastUniqueId, enum OCPP_PACKAGE_STOP_REASON_E reason)
 {
-
     char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
     if (lastUniqueId != NULL)
     {
-        strncpy(lastUniqueId, uniqueId, 40);
+        memcpy(lastUniqueId, uniqueId, 40);
     }
     const char *transactionDataStr = NULL;
     int meterStop = (int)ocpp_chargePoint->getCurrentMeterValues(connector);
@@ -758,9 +676,9 @@ int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *i
         int MeterValuesSampledDataCnt = 0;
         int i = 0;
         ocpp_ConfigurationKey_getValue("StopTxnSampledData", (void *)StopTxnSampledData);
-        MeterValuesSampledDataCnt = ocpp_AuxiliaryTool_charCounter(StopTxnSampledData, ':') + 1;
+        MeterValuesSampledDataCnt = ocpp_AuxiliaryTool_charCounter(StopTxnSampledData, ',') + 1;
         ocpp_package_MeterValues_M_SampledValue sampledValue[MeterValuesSampledDataCnt];
-        char *token = strtok(StopTxnSampledData, ":");
+        char *token = strtok(StopTxnSampledData, ",");
         while (token != NULL)
         {
             struct json_object *sampledValue_object = json_object_new_object();
@@ -984,7 +902,7 @@ int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *i
                 json_object_object_add(sampledValue_object, "unit", json_object_new_string(sampledValue[i].unit));
 
             json_object_array_add(values_array, sampledValue_object);
-            token = strtok(NULL, ":");
+            token = strtok(NULL, ",");
             i++;
         }
         json_object_object_add(transactionData_obj, "sampledValue", values_array);
@@ -996,9 +914,7 @@ int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *i
     json_object_array_add(root_object, payload_object);
     const char *json_string = json_object_to_json_string(root_object);
     enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_STOPTRANSACTION);
-    ocpp_StopTransaction_insert(transactionId, idTag, timestamp,
-                                meterStop, ocpp_package_stop_reason_text[reason], transactionDataStr, uniqueId);
-
+    //ocpp_StopTransaction_update(transactionId,meterStop,timestamp,uniqueId,ocpp_package_stop_reason_text[reason],transactionDataStr);
     json_object_put(root_object);
 
     free(uniqueId);
@@ -1007,184 +923,251 @@ int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *i
 
     return 0;
 }
-
 /**
- * @description: 创建CancelReservation.conf消息
- * @param:
- * @return:
+ * @description:
+ * @param {char *} uniqueId
+ * @param {ocpp_package_CancelReservation_req_t} cancelReservation_req
+ * @return {*}
  */
-char *ocpp_package_prepare_CancelReservation_Response(const char *UniqueId, ocpp_package_CancelReservation_conf_t *CancelReservation)
+void ocpp_chargePoint_manageCancelReservationRequest(const char *uniqueId, ocpp_package_CancelReservation_req_t cancelReservation_req)
 {
-    if (UniqueId == NULL || CancelReservation == NULL)
-    {
-        return NULL;
-    }
     struct json_object *root_object = json_object_new_array();
-    if (root_object == NULL)
+    if (root_object == NULL || uniqueId == NULL)
     {
-        return NULL;
+        return;
+    }
+    ocpp_package_CancelReservation_conf_t cancelReservation_conf;
+    memset(&cancelReservation_conf, 0, sizeof(cancelReservation_conf));
+    cancelReservation_conf.status = OCPP_PACKAGE_CANCEL_RESERVATION_STATUS_REJECTED;
+
+    int connector = 0;
+    for (connector = 0; connector <= ocpp_chargePoint->numberOfConnector; connector++)
+    {
+        if (ocpp_chargePoint->reserveConnector[connector]->reservationId == cancelReservation_req.reservationId)
+        {
+            memset(ocpp_chargePoint->reserveConnector[connector], 0, sizeof(ocpp_chargePoint->reserveConnector[connector]));
+            ocpp_chargePoint->setConnectorStatus(connector, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROR, OCPP_PACKAGE_CHARGEPOINT_STATUS_AVAILABLE);
+            ocpp_chargePoint->getReservationStatus(connector, 0);
+            cancelReservation_conf.status = OCPP_PACKAGE_CANCEL_RESERVATION_STATUS_ACCEPTED;
+            break;
+        }
     }
 
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_CancelReservationStatus_text[CancelReservation->status]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_CancelReservationStatus_text[cancelReservation_conf.status]));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
 
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
     json_object_put(root_object);
-
-    return message;
 }
 
 /**
- * @description: 创建ChangeAvailability.conf消息
- * @param:
- * @return:
+ * @description:
+ * @param {void *} arg
+ * @return {*}
  */
-char *ocpp_package_prepare_ChangeAvailability_Response(const char *UniqueId, ocpp_package_ChangeAvailability_conf_t *ChangeAvailability)
+static void *ocpp_chargePoint_ChangeAvailability_thread(void *arg)
 {
-    if (UniqueId == NULL || ChangeAvailability == NULL)
+    int connector = (int)arg;
+
+    while (1)
     {
-        return NULL;
+
+        if (connector == 0)
+        {
+            int i = 0;
+            for (i = 1; i <= ocpp_chargePoint->numberOfConnector; i++)
+            {
+                if (ocpp_chargePoint->transaction_obj[i]->isTransaction)
+                    break;
+            }
+
+            if (i > ocpp_chargePoint->numberOfConnector)
+            {
+
+                for (i = 0; i < ocpp_chargePoint->numberOfConnector; i++)
+                {
+                    ocpp_chargePoint->setConnectorStatus(i, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROR, OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE);
+                }
+                return NULL;
+            }
+        }
+        else
+        {
+            if (ocpp_chargePoint->transaction_obj[connector]->isTransaction == false)
+            {
+                ocpp_chargePoint->setConnectorStatus(connector, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROR, OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE);
+
+                return NULL;
+            }
+        }
+
+        usleep(500 * 1000); // 200ms
     }
+}
+/**
+ * @description:
+ * @param {char *} uniqueId
+ * @param {ocpp_package_ChangeAvailability_req_t} changeAvailability_req
+ * @return {*}
+ */
+void ocpp_chargePoint_manageChangeAvailabilityRequest(const char *uniqueId, ocpp_package_ChangeAvailability_req_t changeAvailability_req)
+{
+
     struct json_object *root_object = json_object_new_array();
+    if (uniqueId == NULL || root_object == NULL)
+    {
+        return;
+    }
+
+    ocpp_package_ChangeAvailability_conf_t changeAvailability_conf;
+    memset(&changeAvailability_conf, 0, sizeof(changeAvailability_conf));
+
+    changeAvailability_conf.status = OCPP_PACKAGE_AVAILABILITY_STATUS_ACCEPTED;
+
+    if (changeAvailability_req.type == OCPP_PACKAGE_AVAILABILITY_TYPE_OPERATIVE) // 如果设备是可用的情况，直接改
+    {
+        if (ocpp_chargePoint->connector[changeAvailability_req.connectorId]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE)
+        {
+            ocpp_chargePoint->setConnectorStatus(changeAvailability_req.connectorId, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROR, OCPP_PACKAGE_CHARGEPOINT_STATUS_AVAILABLE);
+        }
+    }
+    else
+    {
+        // 如果有交易正在进行，则等待交易结束
+        if (changeAvailability_req.connectorId == 0)
+        {
+            int connector = 0;
+            for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
+            {
+                if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
+                {
+
+                    changeAvailability_conf.status = OCPP_PACKAGE_AVAILABILITY_STATUS_SCHEDULED; // 把状态改成'Scheduled'，以指示 Scheduled（计划） 在交易完成后发生。
+                    break;
+                }
+            }
+        }
+        else
+        {
+            if (ocpp_chargePoint->transaction_obj[changeAvailability_req.connectorId]->isTransaction) // 把状态改成'Scheduled'，以指示 Scheduled（计划） 在交易完成后发生。
+                changeAvailability_conf.status = OCPP_PACKAGE_AVAILABILITY_STATUS_SCHEDULED;
+        }
+
+        // Persistent states? not implement
+    }
+
+    if (changeAvailability_conf.status == OCPP_PACKAGE_AVAILABILITY_STATUS_SCHEDULED)
+    {
+
+        pthread_t tid_changeAvailability;
+        if (pthread_create(&tid_changeAvailability, NULL, ocpp_chargePoint_ChangeAvailability_thread, (void *)changeAvailability_req.connectorId) == -1)
+        {
+            changeAvailability_conf.status = OCPP_PACKAGE_AVAILABILITY_STATUS_REJECTED;
+            printf("create changeAvailability thread fail\n");
+        }
+        pthread_detach(tid_changeAvailability);
+    }
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_AvailabilityStatus_text[ChangeAvailability->status]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_AvailabilityStatus_text[changeAvailability_conf.status]));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
+
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
 
     json_object_put(root_object);
+}
+/**
+ * @description:
+ * @param {char *} uniqueId
+ * @param {ocpp_package_ChangeConfiguration_req_t } changeConfiguration
+ * @return {*}
+ */
+void ocpp_chargePoint_manageChangeConfigurationRequest(const char *uniqueId, ocpp_package_ChangeConfiguration_req_t changeConfiguration_req)
+{
+    struct json_object *root_object = json_object_new_array();
+    if (uniqueId == NULL || root_object == NULL)
+    {
+        return;
+    }
 
-    return message;
+    ocpp_package_ChangeConfiguration_conf_t changeConfiguration_conf;
+
+    changeConfiguration_conf.status = OCPP_PACKAGE_CONFIGURATION_STATUS_NOTSUPPORTED;
+
+    if (ocpp_ConfigurationKey_isFound(changeConfiguration_req.key))
+    {
+        if (ocpp_ConfigurationKey_getIsUse(changeConfiguration_req.key))
+        {
+            if (ocpp_ConfigurationKey_getAcc(changeConfiguration_req.key) == OCPP_ACC_READONLY)
+            {
+                changeConfiguration_conf.status = OCPP_PACKAGE_CONFIGURATION_STATUS_REJECTED;
+            }
+            else
+            {
+                changeConfiguration_conf.status = OCPP_PACKAGE_CONFIGURATION_STATUS_ACCEPTED;
+                ocpp_ConfigurationKey_Modify(changeConfiguration_req.key, changeConfiguration_req.value, 1);
+            }
+        }
+    }
+    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
+
+    struct json_object *payload_object = json_object_new_object();
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_ConfigurationStatus_text[changeConfiguration_conf.status]));
+
+    json_object_array_add(root_object, payload_object);
+
+    const char *json_string = json_object_to_json_string(root_object);
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
+    json_object_put(root_object);
 }
 
 /**
- * @description: 创建ChangeConfiguration.conf消息
- * @param:
- * @return:
+ * @description:
+ * @param {char *} uniqueId
+ * @param {ocpp_package_ClearCache_req_t} clearCache
+ * @return {*}
  */
-char *ocpp_package_prepare_ChangeConfiguration_Response(const char *UniqueId, ocpp_package_ChangeConfiguration_conf_t *ChangeConfiguration)
+void ocpp_chargePoint_manageClearCacheRequest(const char *uniqueId, ocpp_package_ClearCache_req_t clearCache_req)
 {
-    if (UniqueId == NULL || ChangeConfiguration == NULL)
-    {
-        return NULL;
-    }
     struct json_object *root_object = json_object_new_array();
+    if (uniqueId == NULL || root_object == NULL)
+    {
+        return;
+    }
+
+    ocpp_package_ClearCache_conf_t clearCache_conf;
+
+    clearCache_conf.status = OCPP_PACKAGE_CLEAR_CACHE_STATUS_REJECTED;
+    if (ocpp_localAuthorization_Cache_clearCache() == 0)
+    {
+        clearCache_conf.status = OCPP_PACKAGE_CLEAR_CACHE_STATUS_ACCEPTED;
+    }
+
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_ConfigurationStatus_text[ChangeConfiguration->status]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_ClearCacheStatus_text[clearCache_conf.status]));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
 
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
     json_object_put(root_object);
-
-    return message;
-}
-
-/**
- * @description: 创建ClearCache.conf消息
- * @param:
- * @return:
- */
-char *ocpp_package_prepare_ClearCache_Response(const char *UniqueId, ocpp_package_ClearCache_conf_t *ClearCache)
-{
-    if (UniqueId == NULL || ClearCache == NULL)
-    {
-        return NULL;
-    }
-    struct json_object *root_object = json_object_new_array();
-    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
-
-    struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_ClearCacheStatus_text[ClearCache->status]));
-
-    json_object_array_add(root_object, payload_object);
-
-    const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
-
-    json_object_put(root_object);
-
-    return message;
-}
-
-/**
- * @description: 创建ClearChargingProfile.conf消息
- * @param:
- * @return:
- */
-char *ocpp_package_prepare_ClearChargingProfile_Response(const char *UniqueId, ocpp_package_ClearChargingProfile_conf_t *ClearChargingProfile)
-{
-    if (UniqueId == NULL || ClearChargingProfile == NULL)
-    {
-        return NULL;
-    }
-    struct json_object *root_object = json_object_new_array();
-    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
-
-    struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_ClearChargingProfileStatus_text[ClearChargingProfile->status]));
-
-    json_object_array_add(root_object, payload_object);
-
-    const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
-
-    json_object_put(root_object);
-
-    return message;
-}
-
-/**
- * @description: 创建DataTransfer.conf消息
- * @param:
- * @return:
- */
-char *ocpp_package_prepare_DataTransfer_Response(const char *UniqueId, ocpp_package_DataTransfer_conf_t *DataTransfer)
-{
-    if (UniqueId == NULL || DataTransfer == NULL)
-    {
-        return NULL;
-    }
-    struct json_object *root_object = json_object_new_array();
-
-    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
-    struct json_object *payload_object = json_object_new_object();
-
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_DataTransferStatus_text[DataTransfer->status]));
-
-    if (DataTransfer->dataIsUse && DataTransfer->dataLen > 0)
-    {
-        json_object_object_add(payload_object, "data", json_object_new_string(DataTransfer->data));
-    }
-
-    json_object_array_add(root_object, payload_object);
-
-    const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
-
-    json_object_put(root_object);
-
-    return message;
 }
 
 /**
@@ -1214,87 +1197,6 @@ void ocpp_chargePoint_GetLocalListVersion_Req(const char *uniqueId)
 
     json_object_put(root_object);
 }
-/**
- * @description: 创建 GetCompositeSchedule.conf 消息
- * @param:
- * @return:
- */
-char *ocpp_package_prepare_GetCompositeSchedule_Response(const char *UniqueId, ocpp_package_GetCompositeSchedule_conf_t *GetCompositeSchedule)
-{
-    // if (UniqueId == NULL || GetCompositeSchedule == NULL)
-    // {
-    //     return NULL;
-    // }
-    // struct json_object *root_object = json_object_new_array();
-    // json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    // json_object_array_add(root_object, json_object_new_string(UniqueId));
-
-    // struct json_object *payload_object = json_object_new_object();
-    // json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_GetCompositeScheduleStatus_text[GetCompositeSchedule->status]));
-
-    // if (GetCompositeSchedule->connectorIdIsUse)
-    // {
-    //     json_object_object_add(payload_object, "connectorId", json_object_new_int(GetCompositeSchedule->connectorId));
-    // }
-
-    // if (GetCompositeSchedule->scheduleStartIsUse)
-    // {
-    //     json_object_object_add(payload_object, "scheduleStart", json_object_new_string(GetCompositeSchedule->scheduleStart));
-    // }
-
-    // if (GetCompositeSchedule->chargingScheduleIsUse)
-    // {
-    //     struct json_object *chargingSchedule_object = json_object_new_object();
-    //     json_object_object_add(chargingSchedule_object, "chargingRateUnit", json_object_new_string(ocpp_package_ChargingRateUnitType_text[GetCompositeSchedule->chargingSchedule.chargingRateUnit]));
-
-    //     if (GetCompositeSchedule->chargingSchedule.durationIsUse)
-    //     {
-    //         json_object_object_add(chargingSchedule_object, "duration", json_object_new_int(GetCompositeSchedule->chargingSchedule.duration));
-    //     }
-
-    //     if (GetCompositeSchedule->chargingSchedule.startScheduleIsUse)
-    //     {
-    //         json_object_object_add(chargingSchedule_object, "startSchedule", json_object_new_string(GetCompositeSchedule->chargingSchedule.startSchedule));
-    //     }
-
-    //     if (GetCompositeSchedule->chargingSchedule.minChargingRateIsUse)
-    //     {
-    //         json_object_object_add(chargingSchedule_object, "minChargingRate", json_object_new_double(GetCompositeSchedule->chargingSchedule.minChargingRate));
-    //     }
-
-    //     if (GetCompositeSchedule->chargingSchedule.numberOfchargingSchedulePeriod > 0)
-    //     {
-    //         struct json_object *chargingSchedulePeriod_array = json_object_new_array();
-    //         int i;
-    //         for (i = 0; i < GetCompositeSchedule->chargingSchedule.numberOfchargingSchedulePeriod; i++)
-    //         {
-    //             struct json_object *chargingSchedulePeriod_object = json_object_new_object();
-    //             json_object_object_add(chargingSchedulePeriod_object, "startPeriod", json_object_new_int(GetCompositeSchedule->chargingSchedule.chargingSchedulePeriod[i]->startPeriod));
-    //             json_object_object_add(chargingSchedulePeriod_object, "limit", json_object_new_double(GetCompositeSchedule->chargingSchedule.chargingSchedulePeriod[i]->limit));
-
-    //             if (GetCompositeSchedule->chargingSchedule.chargingSchedulePeriod[i]->numberPhasesIsUse)
-    //             {
-    //                 json_object_object_add(chargingSchedulePeriod_object, "numberPhases", json_object_new_int(GetCompositeSchedule->chargingSchedule.chargingSchedulePeriod[i]->numberPhases));
-    //             }
-
-    //             json_object_array_add(chargingSchedulePeriod_array, chargingSchedulePeriod_object);
-    //         }
-
-    //         json_object_object_add(chargingSchedule_object, "chargingSchedulePeriod", chargingSchedulePeriod_array);
-    //     }
-
-    //     json_object_object_add(payload_object, "chargingSchedule", chargingSchedule_object);
-    // }
-
-    // json_object_array_add(root_object, payload_object);
-
-    // const char *json_string = json_object_to_json_string(root_object);
-    // char *message = strdup(json_string);
-
-    // json_object_put(root_object);
-
-    // return message;
-}
 
 /**
  * @description: 创建 GetConfiguration.conf 消息
@@ -1322,7 +1224,8 @@ void ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_p
     struct json_object *configuration_key_array = json_object_new_array();
     struct json_object *unknown_key_array = json_object_new_array();
     // 遍历 GetConfiguration.conf 结构体数组
-    for (int i = 0; i < getConfiguration_conf->numberOfKey; i++)
+    int i;
+    for (i = 0; i < getConfiguration_conf->numberOfKey; i++)
     {
         // 根据类型将配置项添加到相应的数组中
         if (getConfiguration_conf[i].type == -1)
@@ -1356,37 +1259,6 @@ void ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_p
 }
 
 /**
- * @description: 创建 GetDiagnostics.conf 消息
- * @param:
- * @return:
- */
-char *ocpp_package_prepare_GetDiagnostics_Response(const char *UniqueId, ocpp_package_GetDiagnostics_conf_t *GetDiagnostics)
-{
-    if (UniqueId == NULL || GetDiagnostics == NULL)
-    {
-        return NULL;
-    }
-    struct json_object *root_object = json_object_new_array();
-    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
-
-    struct json_object *payload_object = json_object_new_object();
-    if (GetDiagnostics->fileNameIsUse)
-    {
-        json_object_object_add(payload_object, "fileName", json_object_new_string(GetDiagnostics->fileName));
-    }
-
-    json_object_array_add(root_object, payload_object);
-
-    const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
-
-    json_object_put(root_object);
-
-    return message;
-}
-
-/**
  * @description:
  * @param {char *} uniqueId
  * @param {ocpp_package_RemoteStartTransaction_req_t} remoteStartTransaction_req
@@ -1394,20 +1266,29 @@ char *ocpp_package_prepare_GetDiagnostics_Response(const char *UniqueId, ocpp_pa
  */
 void ocpp_chargePoint_manageRemoteStartTransaction_Req(const char *uniqueId, ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req)
 {
+    struct json_object *root_object = json_object_new_array();
+    if (root_object == NULL || uniqueId == NULL)
+    {
+        return;
+    }
 
     ocpp_package_RemoteStartTransaction_conf_t remoteStartTransaction_conf;
     memset(&remoteStartTransaction_conf, 0, sizeof(remoteStartTransaction_conf));
     ocpp_chargePoint_transaction_t *transaction = ocpp_chargePoint->transaction_obj[remoteStartTransaction_req.connectorId];
     remoteStartTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_REJECTED;
-    if (transaction->isStart == false && transaction->isTransaction == false)
+    if ((transaction->isStart == false && transaction->isTransaction == false && ocpp_chargePoint->connector[remoteStartTransaction_req.connectorId]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_PREPARING))
     {
         memset(transaction, 0, sizeof(ocpp_chargePoint_transaction_t));
         strncpy(transaction->startIdTag, remoteStartTransaction_req.idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
         transaction->isStart = true;
         remoteStartTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_ACCEPTED;
     }
+    else
+    {
+        remoteStartTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_REJECTED;
+    }
+
     // response
-    struct json_object *root_object = json_object_new_array();
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
     json_object_array_add(root_object, json_object_new_string(uniqueId));
 
@@ -1419,93 +1300,219 @@ void ocpp_chargePoint_manageRemoteStartTransaction_Req(const char *uniqueId, ocp
     const char *json_string = json_object_to_json_string(root_object);
 
     enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
-    if (root_object)
-    {
-        json_object_put(root_object);
-    }
+
+    json_object_put(root_object);
 }
-/**
- * @description: 创建 RemoteStopTransaction.conf 消息
- * @param:
- * @return:
- */
-char *ocpp_package_prepare_RemoteStopTransaction_Response(const char *UniqueId, ocpp_package_RemoteStopTransaction_conf_t *RemoteStopTransaction)
+
+void ocpp_chargePoint_manageRemoteStopTransactionRequest(const char *uniqueId, ocpp_package_RemoteStopTransaction_req_t remoteStopTransaction_req)
 {
-    if (UniqueId == NULL || RemoteStopTransaction == NULL)
-    {
-        return NULL;
-    }
     struct json_object *root_object = json_object_new_array();
+    if (uniqueId == NULL || root_object)
+    {
+        return;
+    }
+    ocpp_package_RemoteStopTransaction_conf_t remoteStopTransaction_conf;
+    memset(&remoteStopTransaction_conf, 0, sizeof(remoteStopTransaction_conf));
+
+    remoteStopTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_REJECTED;
+
+    int connector = 0;
+
+    for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
+    {
+        printf("isTransaction = %d\n", ocpp_chargePoint->transaction_obj[connector]->isTransaction);
+        if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
+            if (ocpp_chargePoint->transaction_obj[connector]->transactionId == remoteStopTransaction_req.transactionId)
+            {
+                ocpp_chargePoint->remoteStopCharging(connector);
+                remoteStopTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_ACCEPTED;
+                break;
+            }
+    }
+
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_RemoteStartStopStatus_text[RemoteStopTransaction->status]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_RemoteStartStopStatus_text[remoteStopTransaction_conf.status]));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
 
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
     json_object_put(root_object);
-
-    return message;
 }
 
 /**
- * @description: 创建 ReserveNow.conf 消息
- * @param:
- * @return:
+ * @description:
+ * @param {char *} uniqueId
+ * @param {ocpp_package_ReserveNow_req_t} reserveNow
+ * @return {*}
  */
-char *ocpp_package_prepare_ReserveNow_Response(const char *UniqueId, ocpp_package_ReserveNow_conf_t *ReserveNow)
+void ocpp_chargePoint_manageReserveNowRequest(const char *uniqueId, ocpp_package_ReserveNow_req_t reserveNow_req)
 {
-    if (UniqueId == NULL || ReserveNow == NULL)
-    {
-        return NULL;
-    }
     struct json_object *root_object = json_object_new_array();
+    if (root_object == NULL || uniqueId == NULL || reserveNow_req.connectorId < 0 || reserveNow_req.connectorId > ocpp_chargePoint->numberOfConnector)
+    {
+        return;
+    }
+    ocpp_package_ReserveNow_conf_t reserveNow_conf;
+    memset(&reserveNow_conf, 0, sizeof(&reserveNow_conf));
+
+    reserveNow_conf.status = OCPP_PCAKGE_RESERVATION_STATUS_ACCEPTED;
+
+    if (ocpp_chargePoint->connector[reserveNow_req.connectorId]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE)
+    {
+        reserveNow_conf.status = OCPP_PCAKGE_RESERVATION_STATUS_UNAVAILABLE;
+    }
+    else if (ocpp_chargePoint->connector[reserveNow_req.connectorId]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_FAULTED)
+    {
+        reserveNow_conf.status = OCPP_PCAKGE_RESERVATION_STATUS_FAULTED;
+    }
+    else
+    {
+        memset(ocpp_chargePoint->reserveConnector[reserveNow_req.connectorId], 0, sizeof(ocpp_chargePoint->reserveConnector[reserveNow_req.connectorId]));
+        snprintf(ocpp_chargePoint->reserveConnector[reserveNow_req.connectorId]->idTag, OCPP_AUTHORIZATION_IDTAG_LEN, "%s", reserveNow_req.idTag);
+        snprintf(ocpp_chargePoint->reserveConnector[reserveNow_req.connectorId]->expiryDate, 32, "%s", reserveNow_req.idTag);
+        if (reserveNow_req.parentIdTagIsUse)
+        {
+            snprintf(ocpp_chargePoint->reserveConnector[reserveNow_req.connectorId]->parentIdTag, OCPP_AUTHORIZATION_IDTAG_LEN, "%s", reserveNow_req.parentIdTag);
+        }
+        ocpp_chargePoint->reserveConnector[reserveNow_req.connectorId]->reservationId = reserveNow_req.reservationId;
+        ocpp_chargePoint->setConnectorStatus(reserveNow_req.connectorId, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROR, OCPP_PACKAGE_CHARGEPOINT_STATUS_RESERVED);
+        ocpp_chargePoint->getReservationStatus(reserveNow_req.connectorId, 6);
+    }
+
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_ReservationStatus_text[ReserveNow->status]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_ReservationStatus_text[reserveNow_conf.status]));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
 
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
     json_object_put(root_object);
-
-    return message;
 }
-
 /**
- * @description: 创建 Reset.conf消息
- * @param:
- * @return:
+ * @description:
+ * @param {void *} arg
+ * @return {*}
  */
-char *ocpp_package_prepare_Reset_Response(const char *UniqueId, ocpp_package_Reset_conf_t *Reset)
+void *ocpp_chargePoint_Reset_thread(void *arg)
 {
-    if (UniqueId == NULL || Reset == NULL)
+    enum OCPP_PACKAGE_RESET_TYPE_E type = (enum OCPP_PACKAGE_RESET_TYPE_E)arg;
+
+    enum RESET_FLOW_E
     {
-        return NULL;
+        RESET_FLOW_SENDSTOP = 0,
+        RESET_FLOW_WAITSTOP,
+        RESET_FLOW_RESET
+
+    };
+
+    enum RESET_FLOW_E flow = RESET_FLOW_SENDSTOP;
+
+    while (1)
+    {
+
+        int connector = 0;
+        switch (flow)
+        {
+        case RESET_FLOW_SENDSTOP:
+        {
+            for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
+            {
+
+                if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
+                {
+                    ocpp_chargePoint->transaction_obj[connector]->isStop = true;
+                    ocpp_chargePoint->transaction_obj[connector]->reason = OCPP_PACKAGE_STOP_REASON_REBOOT;
+                }
+            }
+
+            flow = RESET_FLOW_WAITSTOP;
+        }
+        break;
+
+        case RESET_FLOW_WAITSTOP:
+        {
+
+            for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
+            {
+                if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
+                    break;
+            }
+
+            if (connector > ocpp_chargePoint->numberOfConnector)
+                flow = RESET_FLOW_RESET;
+        }
+        break;
+
+        case RESET_FLOW_RESET:
+        {
+            if (type == OCPP_PACKAGE_RESET_TYPE_SOFT)
+            {
+                ocpp_ConfigurationKey_deinit();
+                usleep(5 * 1000 * 1000);
+                system("reboot");
+                printf("software reset\n");
+            }
+            else
+            {
+                printf("hard reset\n");
+                usleep(5 * 1000 * 1000);
+                system("reboot");
+            }
+
+            return NULL;
+        }
+        break;
+
+        default:
+            break;
+        }
+
+        usleep(500 * 1000); // 500ms
     }
+}
+/**
+ * @description:
+ * @param {char *} uniqueId
+ * @param {ocpp_package_Reset_req_t} reset
+ * @return {*}
+ */
+void ocpp_chargePoint_manageResetRequest(const char *uniqueId, ocpp_package_Reset_req_t reset_req)
+{
     struct json_object *root_object = json_object_new_array();
+    if (uniqueId == NULL || NULL == root_object)
+    {
+        return;
+    }
+    ocpp_package_Reset_conf_t reset_conf;
+    pthread_t tid_reset;
+    if (pthread_create(&tid_reset, NULL, ocpp_chargePoint_Reset_thread, (void *)reset_req.type) == -1)
+    {
+        printf("create reset thread fail\n");
+    }
+    pthread_detach(tid_reset);
+
+    reset_conf.status = OCPP_PACKAGE_RESET_STATUS_ACCEPTED;
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_ResetStatus_text[Reset->status]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_ResetStatus_text[reset_conf.status]));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
 
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
     json_object_put(root_object);
-
-    return message;
 }
 /**
  * @description:
@@ -1519,18 +1526,21 @@ void ocpp_chargePoint_manageSendLocalList_Req(const char *uniqueId, ocpp_package
     memset(&sendLocalList_conf, 0, sizeof(sendLocalList_conf));
 
     sendLocalList_conf.status = OCPP_PCAKGE_UPDATE_STATUS_ACCEPTED;
-
+    if (sendLocalList_req->UpdateType == OCPP_PACKAGE_UPDATE_TYPE_FULL)
+    {
+        ocpp_localAuthorization_List_clearList();
+    }
     int LocalAuthListEnabled = 0;
     int LocalAuthListMaxLength;
+    int Length = ocpp_localAuthorization_List_RecordCount() + sendLocalList_req->numberOfAuthorizationData;
     ocpp_ConfigurationKey_getValue("LocalAuthListEnabled", &LocalAuthListEnabled);
     ocpp_ConfigurationKey_getValue("LocalAuthListMaxLength", &LocalAuthListMaxLength);
 
-    printf("LocalAuthListEnabled = %d\n", LocalAuthListEnabled);
     if (LocalAuthListEnabled == 0)
     {
         sendLocalList_conf.status = OCPP_PCAKGE_UPDATE_STATUS_NOTSUPPORTED;
     }
-    else if (sendLocalList_req->numberOfAuthorizationData > LocalAuthListMaxLength)
+    else if (Length > LocalAuthListMaxLength)
     {
         sendLocalList_conf.status = OCPP_PCAKGE_UPDATE_STATUS_FAILED;
     }
@@ -1538,23 +1548,16 @@ void ocpp_chargePoint_manageSendLocalList_Req(const char *uniqueId, ocpp_package
     {
         sendLocalList_conf.status = OCPP_PCAKGE_UPDATE_STATUS_VERSION_MISMATCH;
     }
-
     else
     {
         ocpp_localAuthorization_Version_setVersion("Version", sendLocalList_req->listVersion);
-
-        if (sendLocalList_req->UpdateType == OCPP_PACKAGE_UPDATE_TYPE_FULL)
-        {
-            ocpp_localAuthorization_List_clearList();
-        }
-
         // 更新本地列表
         if (sendLocalList_req->numberOfAuthorizationData > 0 && sendLocalList_req->localAuthorizationListIsUse)
         {
             ocpp_localAuthorization_list_entry_t entry;
             memset(&entry, 0, sizeof(ocpp_localAuthorization_list_entry_t));
-
-            for (int i = 0; i < sendLocalList_req->numberOfAuthorizationData; i++)
+            int i;
+            for (i = 0; i < sendLocalList_req->numberOfAuthorizationData; i++)
             {
                 strncpy(entry.IdTag, sendLocalList_req->localAuthorizationList[i].idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
 
@@ -1571,9 +1574,6 @@ void ocpp_chargePoint_manageSendLocalList_Req(const char *uniqueId, ocpp_package
                 }
                 printf("expiryDate = %s\n", sendLocalList_req->localAuthorizationList[i].idTagInfo.expiryDate);
                 ocpp_localAuthorization_List_write(&entry);
-
-                if (entry.expiryDate)
-                    free(entry.expiryDate); // 释放已分配的内存
             }
         }
     }
@@ -1595,33 +1595,6 @@ void ocpp_chargePoint_manageSendLocalList_Req(const char *uniqueId, ocpp_package
         json_object_put(root_object);
     }
 }
-/**
- * @description: 创建SetChargingProfile.conf消息
- * @param:
- * @return:
- */
-char *ocpp_package_prepare_SetChargingProfile_Response(const char *UniqueId, ocpp_package_SetChargingProfile_conf_t *SetChargingProfile)
-{
-    if (UniqueId == NULL || SetChargingProfile == NULL)
-    {
-        return NULL;
-    }
-    struct json_object *root_object = json_object_new_array();
-    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
-
-    struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string("Accepted"));
-
-    json_object_array_add(root_object, payload_object);
-
-    const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
-
-    json_object_put(root_object);
-
-    return message;
-}
 
 /**
  * @description:
@@ -1631,30 +1604,27 @@ char *ocpp_package_prepare_SetChargingProfile_Response(const char *UniqueId, ocp
  */
 void ocpp_chargePoint_manageTriggerMessageRequest(const char *uniqueId, ocpp_package_TriggerMessage_req_t triggerMessage_req)
 {
+    ocpp_package_prepare_Status_Req((char *)uniqueId, 0);
+
     switch (triggerMessage_req.requestedMessage)
     {
     case OCPP_PCAKGE_MESSAGE_TRIGGER_BOOTNOTIFICATION:
-        ocpp_package_prepare_Status_Req(uniqueId, 0);
         ocpp_chargePoint_sendBootNotification_req();
         break;
 
     case OCPP_PCAKGE_MESSAGE_TRIGGER_DIAGNOSTICSSTATUS_NOTIFICATION:
-        // ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
-        ocpp_package_prepare_Status_Req(uniqueId, 3);
+        ocpp_chargePoint_sendDiagnosticsStatusNotification_Req(ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus);
         break;
 
     case OCPP_PCAKGE_MESSAGE_TRIGGER_FIRMWARESTATUS_NOTIFICATION:
-        ocpp_package_prepare_Status_Req(uniqueId, 3);
-        // ocpp_chargePoint_sendFirmwareStatusNotification_Req();
+        ocpp_chargePoint_sendFirmwareStatusNotification_Req(ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState);
         break;
 
     case OCPP_PCAKGE_MESSAGE_TRIGGER_HEARTBEAT:
-        ocpp_package_prepare_Status_Req(uniqueId, 0);
         ocpp_chargePoint_sendHeartbeat_Req();
         break;
 
     case OCPP_PCAKGE_MESSAGE_TRIGGER_METERVALUES:
-        ocpp_package_prepare_Status_Req(uniqueId, 0);
         if (triggerMessage_req.connectorIdIsUse)
             ocpp_chargePoint_sendMeterValues(triggerMessage_req.connectorId, 0);
         else
@@ -1662,7 +1632,6 @@ void ocpp_chargePoint_manageTriggerMessageRequest(const char *uniqueId, ocpp_pac
         break;
 
     case OCPP_PCAKGE_MESSAGE_TRIGGER_STATUS_NOTIFICATION:
-        ocpp_package_prepare_Status_Req(uniqueId, 0);
         if (triggerMessage_req.connectorIdIsUse)
             ocpp_chargePoint_sendStatusNotification_Req(triggerMessage_req.connectorId);
         else
@@ -1674,37 +1643,44 @@ void ocpp_chargePoint_manageTriggerMessageRequest(const char *uniqueId, ocpp_pac
     }
 }
 /**
- * @description: 创建UnlockConnector.conf消息
- * @param:
- * @return:
+ * @description:
+ * @param {char *} uniqueId
+ * @param {ocpp_package_UnlockConnector_req_t} unlockConnector
+ * @return {*}
  */
-char *ocpp_package_prepare_UnlockConnector_Response(const char *UniqueId, ocpp_package_UnlockConnector_conf_t *UnlockConnector)
+void ocpp_chargePoint_manageUnlockConnectorRequest(const char *uniqueId, ocpp_package_UnlockConnector_req_t unlockConnector_req)
 {
-    if (UniqueId == NULL || UnlockConnector == NULL)
-    {
-        return NULL;
-    }
     struct json_object *root_object = json_object_new_array();
+    if (uniqueId == NULL || root_object == NULL)
+    {
+        return;
+    }
+    ocpp_package_UnlockConnector_conf_t unlockConnector_conf;
+
+    unlockConnector_conf.status = OCPP_PACKAGE_UNLOCK_STATUS_NOTSUPPORTED;
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(UniqueId));
+    json_object_array_add(root_object, json_object_new_string(uniqueId));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_UnlockStatus_text[UnlockConnector->status]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_UnlockStatus_text[unlockConnector_conf.status]));
 
     json_object_array_add(root_object, payload_object);
 
     const char *json_string = json_object_to_json_string(root_object);
-    char *message = strdup(json_string);
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
 
     json_object_put(root_object);
-
-    return message;
 }
 
 void ocpp_package_prepare_Status_Req(char *UniqueId, int status)
 {
 
     struct json_object *root_array = json_object_new_array();
+    if (root_array == NULL)
+    {
+        return;
+    }
+
     json_object_array_add(root_array, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
     json_object_array_add(root_array, json_object_new_string(UniqueId));
 
@@ -1715,10 +1691,7 @@ void ocpp_package_prepare_Status_Req(char *UniqueId, int status)
 
     const char *json_string = json_object_to_json_string(root_array);
     enqueueSendMessage(UniqueId, json_string, OCPP_PACKAGE_CALL);
-    if (root_array)
-    {
-        json_object_put(root_array);
-    }
+    json_object_put(root_array);
 }
 /**
  * @description:

@@ -1,11 +1,3 @@
-/*
- * @Author: LIYAOHAN liyaohan@increase.com
- * @Date: 2023-04-10 19:15:42
- * @LastEditors: LIYAOHAN 1791002655@qq.com
- * @LastEditTime: 2023-04-27 11:35:50
- * @FilePath: \功能模块\OCPP\ocpp_connect.h
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
 #ifndef __OCPP_CONNECT__H__
 #define __OCPP_CONNECT__H__
 

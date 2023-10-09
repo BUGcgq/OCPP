@@ -1,4 +1,5 @@
 #include <netdb.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -16,7 +17,7 @@
 #include "ocpp_order.h"
 #include "ocpp_firmwareUpdata.h"
 #include "ocpp_diagnostics.h"
-
+#include "ocpp_chargingProfile.h"
 ocpp_chargePoint_t *ocpp_chargePoint = NULL;
 
 /**
@@ -46,6 +47,10 @@ void ocpp_chargePoint_setDefault(int connector)
 
     return;
 }
+// 设置充电桩状态
+void ocpp_chargePoint_setChangerStatus(int connector, int status)
+{
+}
 
 // 用户点击启动充电
 void ocpp_chargePoint_userPushStartButton(char *idTag, int connector)
@@ -54,8 +59,6 @@ void ocpp_chargePoint_userPushStartButton(char *idTag, int connector)
     ocpp_chargePoint_transaction_t *transaction = ocpp_chargePoint->transaction_obj[connector];
     memset(transaction, 0, sizeof(ocpp_chargePoint_transaction_t));
     transaction->isStart = true;
-    memset(transaction->startIdTag, 0, OCPP_AUTHORIZATION_IDTAG_LEN);
-
     strncpy(transaction->startIdTag, idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
 }
 
@@ -187,101 +190,134 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
     {
         meterValueSampleInterval = 10;
     }
+    time_t currentTime;
+    struct tm *timeInfo;
+    time(&currentTime);
+    timeInfo = localtime(&currentTime);
+
+    int secondsSinceMidnight = timeInfo->tm_hour * 3600 + timeInfo->tm_min * 60 + timeInfo->tm_sec;
+    ChargingProfile chargingProfiles;
+    memset(&chargingProfiles, 0, sizeof(chargingProfiles));
+    if (ocpp_ChargingProfile_read(connector, 1, &chargingProfiles) == 0)
+    {
+        // 遍历所有时间段，查找最小正差值
+        int minDifference = INT_MAX; // 初始化为最大整数
+        int selectedPeriod = -1;     // 初始化为无效值
+        int i;
+        int type;
+        for (i = 0; i < chargingProfiles.chargingSchedule.numPeriods; i++)
+        {
+            int startPeriod = chargingProfiles.chargingSchedule.chargingSchedulePeriods[i].startPeriod;
+            int difference = secondsSinceMidnight - startPeriod;
+            printf("secondsSinceMidnight = %d\n", secondsSinceMidnight);
+            printf("startPeriod = %d\n", startPeriod);
+            printf("difference = %d\n", difference);
+            printf("chargingProfilePurpose = %s\n", chargingProfiles.chargingProfilePurpose);
+            if (difference >= 0 && difference < minDifference)
+            {
+                minDifference = difference;
+                selectedPeriod = i;
+            }
+        }
+        if (selectedPeriod >= 0)
+        {
+            if (strcmp(chargingProfiles.chargingSchedule.chargingRateUnit, "W") == 0)
+            {
+                type = 1;
+            }
+            else
+            {
+                type = 2;
+            }
+            ocpp_chargePoint->setChargingProfile(connector, type, chargingProfiles.chargingSchedule.chargingSchedulePeriods[selectedPeriod].limit);
+        }
+        if (strcmp(chargingProfiles.chargingProfilePurpose, "TxProfile") == 0)
+        {
+            ocpp_ChargingProfile_delete(connector, chargingProfiles.stackLevel, chargingProfiles.chargingProfileId);
+        }
+        if (chargingProfiles.chargingSchedule.chargingSchedulePeriods)
+        {
+            free(chargingProfiles.chargingSchedule.chargingSchedulePeriods);
+        }
+    }
+    else
+    {
+        ocpp_chargePoint->setChargingProfile(0, 0, 0);
+    }
     ocpp_chargePoint_sendStartTransaction(connector, item->startIdTag, item->reservationId, item->lastUniqueId);
     unsigned int RetriesInterval = ocpp_AuxiliaryTool_getSystemTime_ms();
-    enum OCPP_TRANSACTION_STATE_E
-    {
-        OCPP_TARNSACTION_STATE_NONE = 0,
-        OCPP_TRANSACTION_STATE_CHARGING,
-        OCPP_TRANSACTION_STATE_STOPTRANSACTION
-    };
-    enum OCPP_TRANSACTION_STATE_E state = OCPP_TARNSACTION_STATE_NONE;
+    unsigned int MeterValInterval = ocpp_AuxiliaryTool_getSystemTime_ms();
+    int state = 0;
     bool Startoffline = false;
-    bool isCodeBlockExecuted = false; // 在合适的作用域内定义标志变量
-    bool terminate = false;
+    bool isStartTransactionInsert = false; // 在合适的作用域内定义标志变量
     while (1)
     {
-        if (terminate)
-        {
-            printf("terminate!");
-            break;
-        }
         switch (state)
         {
-        case OCPP_TARNSACTION_STATE_NONE:
+        case 0:
             if (ocpp_chargePoint->connect.isConnect)
             {
-                if (ocpp_AuxiliaryTool_getDiffTime_ms(&RetriesInterval) >= 10000)
+                if (ocpp_AuxiliaryTool_getDiffTime_ms(&RetriesInterval) >= 20000)
                 {
-                    state = OCPP_TRANSACTION_STATE_STOPTRANSACTION;
+                    item->reason = OCPP_PACKAGE_STOP_REASON_OTHER;
+                    state = 2;
                 }
-                if (item->isRecStartTransaction_Conf)
+                else if (item->isRecStartTransaction_Conf)
                 {
                     item->transactionId = item->startTransaction.transactionId;
                     if (item->startTransaction.idTagInfo.AuthorizationStatus == OCPP_LOCAL_AUTHORIZATION_ACCEPTED)
                     {
                         printf("允许充电\n");
                         ocpp_chargePoint->startCharging(connector);
-                        state = OCPP_TRANSACTION_STATE_CHARGING;
+                        state = 1;
                     }
                     else
                     {
-                        state = OCPP_TRANSACTION_STATE_STOPTRANSACTION;
+                        printf("不允许充电\n");
+                        state = 2;
                     }
                 }
             }
             else
             {
                 ocpp_chargePoint->startCharging(connector);
-                state = OCPP_TRANSACTION_STATE_CHARGING;
+                state = 1;
                 item->transactionId = ocpp_AuxiliaryTool_GenerateInt(); // 随机生成交易ID
                 Startoffline = true;
             }
             break;
-        case OCPP_TRANSACTION_STATE_CHARGING:
-            if (!isCodeBlockExecuted)
+        case 1:
+            if (!isStartTransactionInsert)
             {
                 char *timestamp = ocpp_AuxiliaryTool_GetCurrentTime();
-                ocpp_StartTransaction_insert(item->transactionId, connector, item->startIdTag, (int)ocpp_chargePoint->getCurrentMeterValues(connector), item->reservationId, timestamp, 0, item->lastUniqueId, Startoffline);
                 if (timestamp)
                 {
+                    //ocpp_StartTransaction_insert(item->transactionId, connector, item->startIdTag, (int)ocpp_chargePoint->getCurrentMeterValues(connector), timestamp, item->lastUniqueId, 0, "PowerLoss");
                     free(timestamp);
                 }
-                isCodeBlockExecuted = true;
-            }
-            if (item->isRecStartTransaction_Conf)
-            {
-                if (item->startTransaction.idTagInfo.AuthorizationStatus != OCPP_LOCAL_AUTHORIZATION_ACCEPTED)
-                {
-                    item->isStop = true;
-                }
+                isStartTransactionInsert = true;
             }
             if (item->isStop)
             {
-                state = OCPP_TRANSACTION_STATE_STOPTRANSACTION;
+                state = 2;
             }
-            if (ocpp_AuxiliaryTool_getDiffTime_ms(&RetriesInterval) >= meterValueSampleInterval * 1000)
+            if (ocpp_AuxiliaryTool_getDiffTime_ms(&MeterValInterval) >= meterValueSampleInterval * 1000)
             {
 
                 ocpp_chargePoint_sendMeterValues(connector, item->transactionId);
-                RetriesInterval = ocpp_AuxiliaryTool_getSystemTime_ms();
+                MeterValInterval = ocpp_AuxiliaryTool_getSystemTime_ms();
             }
             break;
-        case OCPP_TRANSACTION_STATE_STOPTRANSACTION:
-
-            printf("permit stop charging!\n");
+        case 2:
             ocpp_transaction_sendStopTransaction_Simpleness(connector, item->startIdTag, item->transactionId, item->lastUniqueId, item->reason);
-            terminate = true;
-            break;
+            memset(ocpp_chargePoint->transaction_obj[connector], 0, sizeof(ocpp_chargePoint_transaction_t));
+            item = NULL;
+            return NULL;
         }
         usleep(1 * 1000 * 1000); // 等待一段时间后重试
     }
-
-    memset(ocpp_chargePoint->transaction_obj[connector], 0, sizeof(ocpp_chargePoint_transaction_t));
-    item = NULL;
-    printf("事物线程结束\n");
-    pthread_exit(NULL);
 }
+
 /**
  * @description:
  * @param:
@@ -312,7 +348,6 @@ enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E ocpp_chargePoint_authorizationOfIdentif
                 {
                     if (ocpp_localAuthorization_List_isValid(idTag))
                     {
-                        printf("列表有效\n");
                         return OCPP_CHARGEPOINT_AUTHORIZE_RESULT_SUCCEED; // 列表有效
                     }
                 }
@@ -332,7 +367,7 @@ enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E ocpp_chargePoint_authorizationOfIdentif
 
         return OCPP_CHARGEPOINT_AUTHORIZE_RESULT_ONGOING;
     }
-    else // 服务器未连接的情况下发送IdTag
+    else
     {
         if (localAuthorizeOffline)
         {
@@ -412,10 +447,10 @@ void ocpp_chargePoint_Authorization_IdTag(int connector, const char *idTag)
         break;
 
     case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_SUCCEED:
+        printf("授权成功\n");
         ocpp_chargePoint->setAuthorizeResult(connector, true);
         if (!ocpp_chargePoint->transaction_obj[connector]->isStart && !ocpp_chargePoint->transaction_obj[connector]->isTransaction)
         {
-            memset(ocpp_chargePoint->transaction_obj[connector], 0, sizeof(ocpp_chargePoint_transaction_t));
             strncpy(ocpp_chargePoint->transaction_obj[connector]->startIdTag, idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
             ocpp_chargePoint->transaction_obj[connector]->isStart = true;
         }
@@ -535,6 +570,11 @@ static void *ocpp_chargePoint_boot(void *arg)
  */
 void ocpp_chargePoint_manageRemoteStartTransactionRequest(const char *uniqueId, ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req)
 {
+    struct json_object *root_object = json_object_new_array();
+    if (root_object == NULL)
+    {
+        return;
+    }
 
     ocpp_package_RemoteStartTransaction_conf_t remoteStartTransaction_conf;
     memset(&remoteStartTransaction_conf, 0, sizeof(remoteStartTransaction_conf));
@@ -548,7 +588,6 @@ void ocpp_chargePoint_manageRemoteStartTransactionRequest(const char *uniqueId, 
         remoteStartTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_ACCEPTED;
     }
     // response
-    struct json_object *root_object = json_object_new_array();
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
     json_object_array_add(root_object, json_object_new_string(uniqueId));
 
@@ -560,220 +599,8 @@ void ocpp_chargePoint_manageRemoteStartTransactionRequest(const char *uniqueId, 
     const char *json_string = json_object_to_json_string(root_object);
 
     enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
-    if (root_object)
-    {
-        json_object_put(root_object);
-    }
-}
 
-/**
- * @description:
- * @param {char *} uniqueId
- * @param {ocpp_package_CancelReservation_req_t} cancelReservation_req
- * @return {*}
- */
-void ocpp_chargePoint_manageCancelReservationRequest(const char *uniqueId, ocpp_package_CancelReservation_req_t cancelReservation_req)
-{
-
-    ocpp_package_CancelReservation_conf_t cancelReservation_conf;
-    memset(&cancelReservation_conf, 0, sizeof(cancelReservation_conf));
-    cancelReservation_conf.status = OCPP_PACKAGE_CANCEL_RESERVATION_STATUS_ACCEPTED;
-
-    int connector = 0;
-    for (connector = 0; connector <= ocpp_chargePoint->numberOfConnector; connector++)
-    {
-        if (ocpp_chargePoint->isReservation[connector])
-            if (ocpp_chargePoint->reserveConnector[connector]->reservationId == cancelReservation_req.reservationId)
-            {
-
-                ocpp_chargePoint->isReservation[connector] = false;
-                ocpp_reserve_removeReservation(cancelReservation_req.reservationId);
-                break;
-            }
-    }
-
-    if (connector > ocpp_chargePoint->numberOfConnector)
-        cancelReservation_conf.status = OCPP_PACKAGE_CANCEL_RESERVATION_STATUS_REJECTED;
-
-    char *message = ocpp_package_prepare_CancelReservation_Response(uniqueId, &cancelReservation_conf);
-    enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
-    if (message)
-    {
-        free(message);
-    }
-}
-
-/**
- * @description:
- * @param {void *} arg
- * @return {*}
- */
-static void *ocpp_chargePoint_ChangeAvailability_thread(void *arg)
-{
-    int connector = (int)arg;
-
-    while (1)
-    {
-
-        if (connector == 0)
-        {
-            int i = 0;
-            for (i = 1; i <= ocpp_chargePoint->numberOfConnector; i++)
-            {
-                if (ocpp_chargePoint->transaction_obj[i]->isTransaction)
-                    break;
-            }
-
-            if (i > ocpp_chargePoint->numberOfConnector)
-            {
-
-                for (i = 0; i < ocpp_chargePoint->numberOfConnector; i++)
-                {
-                    ocpp_chargePoint->setConnectorStatus(i, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROR, OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE);
-                }
-                return NULL;
-            }
-        }
-        else
-        {
-            if (ocpp_chargePoint->transaction_obj[connector]->isTransaction == false)
-            {
-                ocpp_chargePoint->setConnectorStatus(connector, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROR, OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE);
-
-                return NULL;
-            }
-        }
-
-        usleep(500 * 1000); // 200ms
-    }
-}
-
-/**
- * @description:
- * @param {char *} uniqueId
- * @param {ocpp_package_ChangeAvailability_req_t} changeAvailability_req
- * @return {*}
- */
-void ocpp_chargePoint_manageChangeAvailabilityRequest(const char *uniqueId, ocpp_package_ChangeAvailability_req_t changeAvailability_req)
-{
-
-    ocpp_package_ChangeAvailability_conf_t changeAvailability_conf;
-    memset(&changeAvailability_conf, 0, sizeof(changeAvailability_conf));
-
-    changeAvailability_conf.status = OCPP_PACKAGE_AVAILABILITY_STATUS_ACCEPTED;
-
-    if (changeAvailability_req.type == OCPP_PACKAGE_AVAILABILITY_TYPE_OPERATIVE) // 如果设备是可用的情况，直接改
-    {
-        if (ocpp_chargePoint->connector[changeAvailability_req.connectorId]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE)
-        {
-            ocpp_chargePoint->setConnectorStatus(changeAvailability_req.connectorId, OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROR, OCPP_PACKAGE_CHARGEPOINT_STATUS_AVAILABLE);
-        }
-    }
-    else
-    {
-        // 如果有交易正在进行，则等待交易结束
-        if (changeAvailability_req.connectorId == 0)
-        {
-            int connector = 0;
-            for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
-            {
-                if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
-                {
-
-                    changeAvailability_conf.status = OCPP_PACKAGE_AVAILABILITY_STATUS_SCHEDULED; // 把状态改成'Scheduled'，以指示 Scheduled（计划） 在交易完成后发生。
-                    break;
-                }
-            }
-        }
-        else
-        {
-            if (ocpp_chargePoint->transaction_obj[changeAvailability_req.connectorId]->isTransaction) // 把状态改成'Scheduled'，以指示 Scheduled（计划） 在交易完成后发生。
-                changeAvailability_conf.status = OCPP_PACKAGE_AVAILABILITY_STATUS_SCHEDULED;
-        }
-
-        // Persistent states? not implement
-    }
-
-    if (changeAvailability_conf.status == OCPP_PACKAGE_AVAILABILITY_STATUS_SCHEDULED)
-    {
-
-        pthread_t tid_changeAvailability;
-        if (pthread_create(&tid_changeAvailability, NULL, ocpp_chargePoint_ChangeAvailability_thread, (void *)changeAvailability_req.connectorId) == -1)
-        {
-            changeAvailability_conf.status = OCPP_PACKAGE_AVAILABILITY_STATUS_REJECTED;
-            printf("create changeAvailability thread fail\n");
-        }
-        pthread_detach(tid_changeAvailability);
-    }
-
-    char *message = ocpp_package_prepare_ChangeAvailability_Response(uniqueId, &changeAvailability_conf);
-    enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
-    if (message)
-    {
-        free(message);
-    }
-}
-
-/**
- * @description:
- * @param {char *} uniqueId
- * @param {ocpp_package_ChangeConfiguration_req_t } changeConfiguration
- * @return {*}
- */
-void ocpp_chargePoint_manageChangeConfigurationRequest(const char *uniqueId, ocpp_package_ChangeConfiguration_req_t changeConfiguration_req)
-{
-
-    ocpp_package_ChangeConfiguration_conf_t changeConfiguration_conf;
-
-    changeConfiguration_conf.status = OCPP_PACKAGE_CONFIGURATION_STATUS_NOTSUPPORTED;
-
-    if (ocpp_ConfigurationKey_isFound(changeConfiguration_req.key))
-    {
-        if (ocpp_ConfigurationKey_getIsUse(changeConfiguration_req.key))
-        {
-            if (ocpp_ConfigurationKey_getAcc(changeConfiguration_req.key) == OCPP_ACC_READONLY)
-            {
-                changeConfiguration_conf.status = OCPP_PACKAGE_CONFIGURATION_STATUS_REJECTED;
-            }
-            else
-            {
-                changeConfiguration_conf.status = OCPP_PACKAGE_CONFIGURATION_STATUS_ACCEPTED;
-                ocpp_ConfigurationKey_Modify(changeConfiguration_req.key, changeConfiguration_req.value, 1);
-            }
-        }
-    }
-
-    char *message = ocpp_package_prepare_ChangeConfiguration_Response(uniqueId, &changeConfiguration_conf);
-    enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
-    if (message)
-    {
-        free(message);
-    }
-}
-
-/**
- * @description:
- * @param {char *} uniqueId
- * @param {ocpp_package_ClearCache_req_t} clearCache
- * @return {*}
- */
-void ocpp_chargePoint_manageClearCacheRequest(const char *uniqueId, ocpp_package_ClearCache_req_t clearCache_req)
-{
-
-    ocpp_package_ClearCache_conf_t clearCache_conf;
-
-    clearCache_conf.status = OCPP_PACKAGE_CLEAR_CACHE_STATUS_REJECTED;
-    if (ocpp_localAuthorization_Cache_clearCache() == 0)
-    {
-        clearCache_conf.status = OCPP_PACKAGE_CLEAR_CACHE_STATUS_ACCEPTED;
-    }
-
-    char *message = ocpp_package_prepare_ClearCache_Response(uniqueId, &clearCache_conf);
-    enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
-    if (message)
-    {
-        free(message);
-    }
+    json_object_put(root_object);
 }
 
 /**
@@ -802,8 +629,49 @@ void ocpp_chargePoint_manageDataTransferRequest(const char *uniqueId, ocpp_packa
  * @param {ocpp_package_DataTransfer_req_t} dataTransfer
  * @return {*}
  */
-void ocpp_chargePoint_manageGetCompositeScheduleRequest(const char *uniqueId, ocpp_package_GetCompositeSchedule_req_t getCompositeSchedule)
+void ocpp_chargePoint_manageGetCompositeScheduleRequest(const char *uniqueId, ChargingProfile chargingProfile)
 {
+    if (uniqueId == NULL)
+    {
+        return;
+    }
+    // 创建一个 JSON 数组
+    struct json_object *root_array = json_object_new_array();
+
+    json_object_array_add(root_array, json_object_new_int(3));
+    json_object_array_add(root_array, json_object_new_string(uniqueId));
+
+    // 创建包含 "chargingSchedule" 的子对象
+    struct json_object *chargingSchedule_obj = json_object_new_object();
+    json_object_object_add(chargingSchedule_obj, "duration", json_object_new_int(chargingProfile.chargingSchedule.duration));
+    json_object_object_add(chargingSchedule_obj, "startSchedule", json_object_new_string(chargingProfile.chargingSchedule.startSchedule));
+    json_object_object_add(chargingSchedule_obj, "chargingRateUnit", json_object_new_string(chargingProfile.chargingSchedule.chargingRateUnit));
+
+    // 创建 "chargingSchedulePeriod" 数组
+    struct json_object *chargingSchedulePeriod_array = json_object_new_array();
+
+    // 添加 "chargingSchedulePeriod" 数组元素，按照你提供的顺序
+    for (int i = 0; i < chargingProfile.chargingSchedule.numPeriods; i++)
+    {
+        struct json_object *period_obj = json_object_new_object();
+        json_object_object_add(period_obj, "startPeriod", json_object_new_int(chargingProfile.chargingSchedule.chargingSchedulePeriods[i].startPeriod));
+        json_object_object_add(period_obj, "limit", json_object_new_int(chargingProfile.chargingSchedule.chargingSchedulePeriods[i].limit));
+        json_object_object_add(period_obj, "numberPhases", json_object_new_int(chargingProfile.chargingSchedule.chargingSchedulePeriods[i].numberPhases));
+        json_object_array_add(chargingSchedulePeriod_array, period_obj);
+    }
+
+    // 添加 "chargingSchedulePeriod" 数组到 "chargingSchedule" 子对象
+    json_object_object_add(chargingSchedule_obj, "chargingSchedulePeriod", chargingSchedulePeriod_array);
+
+    // 添加 "chargingSchedule" 子对象到主数组
+    json_object_array_add(root_array, chargingSchedule_obj);
+
+    const char *json_string = json_object_to_json_string(root_array);
+
+    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
+
+    // 释放 JSON 对象
+    json_object_put(root_array);
 }
 
 /**
@@ -882,7 +750,6 @@ void ocpp_chargePoint_manage_GetConfigurationRequest(const char *uniqueId, ocpp_
             break;
         default:
             getConfiguration_conf[i].type = -1;
-            printf("key = %s,type = %d\n", getConfiguration_conf[i].key, getConfiguration_conf[i].type);
             break;
         }
     }
@@ -894,577 +761,38 @@ void ocpp_chargePoint_manage_GetConfigurationRequest(const char *uniqueId, ocpp_
 
 /**
  * @description:
- * @param
- * @param
- * @return
- */
-void *ocpp_chargePoint_diagnostics_upload_thread(void *arg)
-{
-    // printf("create upload thread");
-    // ocpp_chargePoint_diagnostics_t *diagnostics = (ocpp_chargePoint_diagnostics_t *)arg;
-
-    // int retries = 0;
-    // struct hostent *hp;
-    // char server_filepath_name[256] = {0};
-
-    // for (; true;)
-    // {
-
-    //     if (retries >= diagnostics->retries)
-    //     {
-    //         ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOAD_FAILED;
-    //         ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
-    //         break;
-    //     }
-
-    //     printf("数据库导出文件\n");
-
-    //     // 根据域名提取IP地址
-    //     printf("根据域名提取IP地址\n");
-    //     for (; retries < diagnostics->retries; retries++)
-    //     {
-    //         if ((hp = gethostbyname(diagnostics->serverAddr)) != NULL)
-    //         {
-    //             break;
-    //         }
-    //         else
-    //         {
-    //             usleep(diagnostics->retryInterval * 1000 * 1000);
-    //             printf("DNS error = %s", strerror(errno));
-    //         }
-    //     }
-
-    //     // 连接FTP服务器
-    //     printf("连接FTP服务器\n");
-    //     for (; retries < diagnostics->retries; retries++)
-    //     {
-    //         if ((diagnostics->client.control_sock = ocpp_ftp_connect_server((char *)hp->h_addr, diagnostics->port)) >= 0)
-    //         {
-    //             break;
-    //         }
-    //         else
-    //         {
-    //             usleep(diagnostics->retryInterval * 1000 * 1000);
-    //             printf("diagnostics connect FTP server fail\n");
-    //         }
-    //     }
-
-    //     // 登录FTP服务器
-    //     printf("登录FTP服务器\n");
-    //     for (; retries < diagnostics->retries; retries++)
-    //     {
-    //         if (ocpp_ftp_login_server(diagnostics->client.control_sock, diagnostics->client.usr, diagnostics->client.passwd) >= 0)
-    //         {
-    //             break;
-    //         }
-    //         else
-    //         {
-    //             usleep(diagnostics->retryInterval * 1000 * 1000);
-    //             printf("diagnostics login ftp server fail\n");
-    //         }
-    //     }
-
-    //     // 传输诊断状态通知
-    //     printf("发送诊断状态通知\n");
-    //     if (retries < diagnostics->retries)
-    //     {
-    //         ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADING;
-    //         ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
-    //         strcpy(server_filepath_name, diagnostics->client.ser_filepath);
-    //         strcat(server_filepath_name, diagnostics->client.ser_filename);
-    //         printf("server_filepath_name = %s\n", server_filepath_name);
-    //     }
-
-    //     // 上传诊断日志通知
-    //     printf("上传诊断日志\n");
-    //     for (; retries < diagnostics->retries; retries++)
-    //     {
-    //         if (ocpp_ftp_up_file(diagnostics->client.control_sock, server_filepath_name, OCPP_LOGS_FILEPATH, 1, 0) >= 0)
-    //         {
-
-    //             break;
-    //         }
-    //         else
-    //         {
-    //             usleep(diagnostics->retryInterval * 1000 * 1000);
-    //             printf("diagnostics upload file fail\n");
-    //         }
-    //     }
-
-    //     // 诊断日志上传成功
-    //     printf("诊断日志上传成功\n");
-    //     if (retries < diagnostics->retries)
-    //     {
-    //         ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADED;
-    //         ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
-    //         break;
-    //     }
-    // }
-
-    // ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_IDLE;
-    // free(diagnostics);
-    // return NULL;
-}
-
-/**
- * @description:
  * @param {char *} uniqueId
  * @param {ocpp_package_GetDiagnostics_req_t} GetDiagnostics
  * @return {*}
  */
-void ocpp_chargePoint_manageGetDiagnosticsRequest(const char *uniqueId, ocpp_package_GetDiagnostics_req_t GetDiagnostics_req)
+void ocpp_chargePoint_manageGetDiagnosticsRequest(ocpp_package_GetDiagnostics_req_t GetDiagnostics_req)
 {
+    ocpp_package_GetDiagnostics_req_t *GetDiagnostics_conf = malloc(sizeof(ocpp_package_GetDiagnostics_req_t));
+    memcpy(GetDiagnostics_conf, &GetDiagnostics_req, sizeof(ocpp_package_GetDiagnostics_req_t));
 
-    // ocpp_package_GetDiagnostics_conf_t getDiagnostics_conf;
-    // memset(&getDiagnostics_conf, 0, sizeof(getDiagnostics_conf));
-
-    // ocpp_chargePoint_diagnostics_t *diagnostics = (ocpp_chargePoint_diagnostics_t *)calloc(1, sizeof(ocpp_chargePoint_diagnostics_t));
-
-    // diagnostics->retries = 3;
-    // if (GetDiagnostics_req.retriesIsUse)
-    //     diagnostics->retries = GetDiagnostics_req.retries;
-
-    // diagnostics->retryInterval = 60;
-    // if (GetDiagnostics_req.retryIntervalIsUse)
-    //     diagnostics->retryInterval = GetDiagnostics_req.retryInterval;
-
-    // diagnostics->isUseStartTime = false;
-    // if (GetDiagnostics_req.startTimeIsUse)
-    // {
-    //     diagnostics->isUseStartTime = true;
-    //     strncpy(diagnostics->startTime, GetDiagnostics_req.startTime, 32);
-    // }
-
-    // diagnostics->isUseStopTime = false;
-    // if (GetDiagnostics_req.stopTimeIsUse)
-    // {
-    //     diagnostics->isUseStopTime = true;
-    //     strncpy(diagnostics->stopTime, GetDiagnostics_req.stopTime, 32);
-    // }
-
-    // //	"location":"ftp://0209GCpBn7:523Fw6FS@f1.iot17.com:8183/smart/2681b667733cd919e8iq55/diagnostics/1686016382951893/",
-    // char *index_start = NULL;
-    // char *index_stop = NULL;
-
-    // // extract username
-    // index_start = strchr(GetDiagnostics_req.location, '/') + 2;
-    // index_stop = strchr(index_start, ':');
-    // strncpy(diagnostics->client.usr, index_start, index_stop - index_start);
-    // diagnostics->client.usr[index_stop - index_start + 1] = '\0';
-    // printf("client.usr = %s", diagnostics->client.usr);
-
-    // // extract password
-    // index_start = index_stop + 1;
-    // index_stop = strchr(index_start, '@');
-    // strncpy(diagnostics->client.passwd, index_start, index_stop - index_start);
-    // diagnostics->client.passwd[index_stop - index_start + 1] = '\0';
-    // printf("client.passwd = %s", diagnostics->client.passwd);
-
-    // // extract server address
-    // index_start = index_stop + 1;
-    // index_stop = strchr(index_start, ':');
-    // strncpy(diagnostics->serverAddr, index_start, index_stop - index_start);
-    // diagnostics->serverAddr[index_stop - index_start + 1] = '\0';
-    // printf("serverAddr = %s", diagnostics->serverAddr);
-
-    // // extract port
-    // index_start = index_stop + 1;
-    // index_stop = strchr(index_start, '/');
-    // char port_str[10] = {0};
-    // strncpy(port_str, index_start, index_stop - index_start);
-    // port_str[index_stop - index_start + 1] = '\0';
-    // diagnostics->port = atoi(port_str);
-    // printf("port = %d", diagnostics->port);
-
-    // // extract path
-    // index_start = index_stop;
-    // strcpy(diagnostics->client.ser_filepath, index_start);
-    // printf("path = %s", diagnostics->client.ser_filepath);
-
-    // // extract filename
-    // strcpy(diagnostics->client.ser_filename, OCPP_LOGS_FILENAME);
-    // printf("filename = %s", diagnostics->client.ser_filename);
-
-    // // 创建诊断日志线程
-    // pthread_t ptid_diagnostics;
-    // if (pthread_create(&ptid_diagnostics, NULL, ocpp_chargePoint_diagnostics_upload_thread, (void *)diagnostics) == -1)
-    // {
-    //     printf("create diagnostics upload thread fail");
-    // }
-    // pthread_detach(ptid_diagnostics);
-
-    // getDiagnostics_conf.fileNameIsUse = 1;
-    // strncpy(getDiagnostics_conf.fileName, OCPP_LOGS_FILENAME, 256);
-
-    // char *message = ocpp_package_prepare_GetDiagnostics_Response(uniqueId, &getDiagnostics_conf);
-    // enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
-    // if (message)
-    // {
-    //     free(message);
-    // }
-}
-
-/**
- * @description:
- * @param {char *} uniqueId
- * @param {ocpp_package_RemoteStopTransaction_req_t} remoteStopTransaction
- * @return {*}
- */
-void ocpp_chargePoint_manageRemoteStopTransactionRequest(const char *uniqueId, ocpp_package_RemoteStopTransaction_req_t remoteStopTransaction_req)
-{
-
-    ocpp_package_RemoteStopTransaction_conf_t remoteStopTransaction_conf;
-    memset(&remoteStopTransaction_conf, 0, sizeof(remoteStopTransaction_conf));
-
-    remoteStopTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_REJECTED;
-
-    int connector = 0;
-    // for(connector = 0; connector < ocpp_chargePoint->numberOfConnector; connector++){
-    //     if(remoteStopTransaction_req.transactionId == ocpp_transaction_getTransactionId(connector + 1)){
-    //         remoteStopTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_ACCEPTED;
-    //         ocpp_transaction_setRemoteStop(connector + 1);
-    //         ocpp_transaction_setStopReason(connector + 1, OCPP_PACKAGE_STOP_REASON_REMOTE);
-    //         break;
-
-    //     }
-    // }
-
-    for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
+    if (!GetDiagnostics_conf->retriesIsUse || GetDiagnostics_conf->retries == 0)
     {
-        printf("isTransaction = %d\n", ocpp_chargePoint->transaction_obj[connector]->isTransaction);
-        if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
-            if (ocpp_chargePoint->transaction_obj[connector]->transactionId == remoteStopTransaction_req.transactionId)
-            {
-                ocpp_chargePoint->remoteStopCharging(connector);
-                remoteStopTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_ACCEPTED;
-                break;
-            }
+        GetDiagnostics_conf->retries = 1;
     }
-
-    char *message = ocpp_package_prepare_RemoteStopTransaction_Response(uniqueId, &remoteStopTransaction_conf);
-    enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
-    if (message)
+    else
     {
-        free(message);
+        GetDiagnostics_conf->retries = GetDiagnostics_conf->retries;
     }
-}
-
-/**
- * @description:
- * @param {char *} uniqueId
- * @param {ocpp_package_ReserveNow_req_t} reserveNow
- * @return {*}
- */
-void ocpp_chargePoint_manageReserveNowRequest(const char *uniqueId, ocpp_package_ReserveNow_req_t reserveNow_req)
-{
-
-    ocpp_package_ReserveNow_conf_t reserveNow_conf;
-    memset(&reserveNow_conf, 0, sizeof(&reserveNow_conf));
-
-    reserveNow_conf.status = OCPP_PCAKGE_RESERVATION_STATUS_ACCEPTED;
-
-    if (ocpp_chargePoint->connector[reserveNow_req.connectorId]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE)
+    if (!GetDiagnostics_conf->retryIntervalIsUse || GetDiagnostics_conf->retryInterval == 0)
     {
-        reserveNow_conf.status = OCPP_PCAKGE_RESERVATION_STATUS_UNAVAILABLE;
+        GetDiagnostics_conf->retryInterval = 120;
     }
-    else if (ocpp_chargePoint->connector[reserveNow_req.connectorId]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_FAULTED)
+    ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADING;
+    pthread_t ptid_diagnostics;
+    if (pthread_create(&ptid_diagnostics, NULL, ocpp_chargePoint_diagnostics_upload_thread, (void *)GetDiagnostics_conf) == -1)
     {
-        reserveNow_conf.status = OCPP_PCAKGE_RESERVATION_STATUS_FAULTED;
+        printf("create firmware thread fail\n");
     }
     else
     {
 
-        if (ocpp_chargePoint->isReservation[reserveNow_req.connectorId])
-        {
-            if (ocpp_chargePoint->reserveConnector[reserveNow_req.connectorId]->reservationId == reserveNow_req.reservationId)
-            {
-
-                char *parentIdTag = NULL;
-                if (reserveNow_req.parentIdTagIsUse)
-                    parentIdTag = reserveNow_req.parentIdTag;
-
-                ocpp_reserve_updateReservation(reserveNow_req.reservationId,
-                                               reserveNow_req.connectorId, reserveNow_req.expiryDate, reserveNow_req.idTag, parentIdTag);
-            }
-            else
-            {
-                reserveNow_conf.status = OCPP_PCAKGE_RESERVATION_STATUS_OCCUPIED;
-            }
-        }
-        else
-        {
-
-            if (reserveNow_req.connectorId == 0)
-            {
-                bool ReserveConnectorZeroSupported = false;
-                ocpp_ConfigurationKey_getValue(ocpp_configurationKeyText[OCPP_CK_ReserveConnectorZeroSupported], (void *)&ReserveConnectorZeroSupported);
-                if (ReserveConnectorZeroSupported == false)
-                {
-
-                    reserveNow_conf.status = OCPP_PCAKGE_RESERVATION_STATUS_REJECTED;
-                }
-            }
-
-            if (reserveNow_conf.status == OCPP_PCAKGE_RESERVATION_STATUS_ACCEPTED)
-            {
-
-                ocpp_chargePoint->isReservation[reserveNow_req.connectorId] = true;
-                ocpp_chargePoint->reserveConnector[reserveNow_req.connectorId]->reservationId = reserveNow_req.reservationId;
-                strncpy(ocpp_chargePoint->reserveConnector[reserveNow_req.connectorId]->idTag, reserveNow_req.idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
-                memset(ocpp_chargePoint->reserveConnector[reserveNow_req.connectorId]->parentIdTag, 0, OCPP_AUTHORIZATION_IDTAG_LEN);
-                if (reserveNow_req.parentIdTagIsUse)
-                    strncpy(ocpp_chargePoint->reserveConnector[reserveNow_req.connectorId]->parentIdTag, reserveNow_req.parentIdTag, OCPP_AUTHORIZATION_IDTAG_LEN);
-
-                strptime(reserveNow_req.expiryDate, "%Y-%m-%dT%H:%M:%S.", &ocpp_chargePoint->reserveConnector[reserveNow_req.connectorId]->expiryDate);
-
-                char *parentIdTag = NULL;
-                if (reserveNow_req.parentIdTagIsUse)
-                    parentIdTag = reserveNow_req.parentIdTag;
-
-                ocpp_reserve_updateReservation(reserveNow_req.reservationId,
-                                               reserveNow_req.connectorId, reserveNow_req.expiryDate, reserveNow_req.idTag, parentIdTag);
-            }
-        }
+        pthread_detach(ptid_diagnostics);
     }
-    char *message = ocpp_package_prepare_ReserveNow_Response(uniqueId, &reserveNow_conf);
-    enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
-    if (message)
-    {
-        free(message);
-    }
-}
-
-/**
- * @description:
- * @param {void *} arg
- * @return {*}
- */
-void *ocpp_chargePoint_Reset_thread(void *arg)
-{
-    enum OCPP_PACKAGE_RESET_TYPE_E type = (enum OCPP_PACKAGE_RESET_TYPE_E)arg;
-
-    enum RESET_FLOW_E
-    {
-        RESET_FLOW_SENDSTOP = 0,
-        RESET_FLOW_WAITSTOP,
-        RESET_FLOW_RESET
-
-    };
-
-    enum RESET_FLOW_E flow = RESET_FLOW_SENDSTOP;
-
-    while (1)
-    {
-
-        int connector = 0;
-        switch (flow)
-        {
-        case RESET_FLOW_SENDSTOP:
-        {
-            for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
-            {
-
-                if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
-                {
-                    ocpp_chargePoint->transaction_obj[connector]->isStop = true;
-                    ocpp_chargePoint->transaction_obj[connector]->reason = OCPP_PACKAGE_STOP_REASON_REBOOT;
-                }
-            }
-
-            flow = RESET_FLOW_WAITSTOP;
-        }
-        break;
-
-        case RESET_FLOW_WAITSTOP:
-        {
-
-            for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
-            {
-                if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
-                    break;
-            }
-
-            if (connector > ocpp_chargePoint->numberOfConnector)
-                flow = RESET_FLOW_RESET;
-        }
-        break;
-
-        case RESET_FLOW_RESET:
-        {
-            if (type == OCPP_PACKAGE_RESET_TYPE_SOFT)
-            {
-                ocpp_ConfigurationKey_deinit();
-                usleep(5 * 1000 * 1000);
-                system("reboot");
-                printf("software reset\n");
-            }
-            else
-            {
-                printf("hard reset\n");
-                usleep(5 * 1000 * 1000);
-                system("reboot");
-            }
-
-            return;
-        }
-        break;
-
-        default:
-            break;
-        }
-
-        usleep(500 * 1000); // 500ms
-    }
-}
-
-/**
- * @description:
- * @param {char *} uniqueId
- * @param {ocpp_package_Reset_req_t} reset
- * @return {*}
- */
-void ocpp_chargePoint_manageResetRequest(const char *uniqueId, ocpp_package_Reset_req_t reset_req)
-{
-
-    ocpp_package_Reset_conf_t reset_conf;
-
-    pthread_t tid_reset;
-    if (pthread_create(&tid_reset, NULL, ocpp_chargePoint_Reset_thread, (void *)reset_req.type) == -1)
-    {
-        printf("create reset thread fail\n");
-    }
-    pthread_detach(tid_reset);
-
-    reset_conf.status = OCPP_PACKAGE_RESET_STATUS_ACCEPTED;
-    char *message = ocpp_package_prepare_Reset_Response(uniqueId, &reset_conf);
-    enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
-    if (message)
-    {
-        free(message);
-    }
-}
-
-void ocpp_chargePoint_manageSetChargingProfileRequest(const char *uniqueId, ocpp_package_SetChargingProfile_req_t *setChargingProfile)
-{
-    char *message = ocpp_package_prepare_SetChargingProfile_Response(uniqueId, &setChargingProfile);
-    enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
-}
-
-/**
- * @description:
- * @param {char *} uniqueId
- * @param {ocpp_package_UnlockConnector_req_t} unlockConnector
- * @return {*}
- */
-void ocpp_chargePoint_manageUnlockConnectorRequest(const char *uniqueId, ocpp_package_UnlockConnector_req_t unlockConnector_req)
-{
-    ocpp_package_UnlockConnector_conf_t unlockConnector_conf;
-
-    unlockConnector_conf.status = OCPP_PACKAGE_UNLOCK_STATUS_NOTSUPPORTED;
-
-    char *message = ocpp_package_prepare_UnlockConnector_Response(uniqueId, &unlockConnector_conf);
-
-    enqueueSendMessage(uniqueId, message, OCPP_PACKAGE_CALL);
-    if (message)
-    {
-        free(message);
-    }
-}
-
-static bool isFirmwareThreadRunning = false;
-/**
- * @description: 固件更新线程
- * @param
- * @param
- * @return
- */
-void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
-{
-    ocpp_package_UpdateFirmware_req_t *UpdateFirmware = (ocpp_package_UpdateFirmware_req_t *)arg;
-    printf("url = %s\n", UpdateFirmware->location);
-    int retries = 0;
-    bool isStopAllTransaction = false;
-    bool downloadstatus = false;
-    int connector = 0;
-    struct tm retrieveDate;
-    memset(&retrieveDate, 0, sizeof(struct tm));
-    strptime(UpdateFirmware->retrieveDate, "%Y-%m-%dT%H:%M:%S.000Z", &retrieveDate);
-    // 计算目标时间的时间戳
-    time_t firmwareTime = mktime(&retrieveDate);
-    int secondsToWait = 0;
-    time_t currentTime = 0;
-    while (1)
-    {
-        if (retries >= UpdateFirmware->retries)
-        {
-            break;
-        }
-        // 如果当前有交易,则结束交易
-        for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
-        {
-            if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
-            {
-                ocpp_chargePoint->userPushStopButton(ocpp_chargePoint->transaction_obj[connector]->startIdTag, connector, OCPP_PACKAGE_STOP_REASON_SOFTRESET);
-            }
-        }
-        // 等待交易停止
-        while (!isStopAllTransaction)
-        {
-            for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
-            {
-                if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
-                {
-                    break;
-                }
-            }
-
-            if (connector > ocpp_chargePoint->numberOfConnector)
-            {
-                isStopAllTransaction = true;
-            }
-
-            usleep(5 * 1000 * 1000);
-        }
-
-        ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING);
-
-        if (download_file(UpdateFirmware->location, OCPP_FIRMWARE_UPDATA_FILEPATH) == 0)
-        {
-            downloadstatus = true;
-            ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADED);
-            break;
-        }
-
-        ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED);
-        usleep(UpdateFirmware->retryInterval * 1000 * 1000);
-        // 获取当前时间的时间戳
-        currentTime = time(NULL);
-        // 计算等待时间
-        secondsToWait = firmwareTime - currentTime;
-        if (secondsToWait > 0)
-        {
-            sleep(secondsToWait); // 等待到达升级时间
-            printf("升级时间到达，执行升级流程...\n");
-        }
-        else
-        {
-            printf("升级时间已过，立即执行升级流程...\n");
-        }
-        retries++;
-    }
-    if (downloadstatus)
-    {
-        usleep(2 * 1000 * 1000); // 等待消息发送出去
-        ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_INSTALLING);
-        usleep(3 * 1000 * 1000); // 等待消息发送出去
-        system("reboot");
-    }
-    if (UpdateFirmware)
-    {
-        free(UpdateFirmware);
-    }
-    isFirmwareThreadRunning = false;
-    return;
 }
 
 /**
@@ -1473,47 +801,33 @@ void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
  * @param {ocpp_package_UpdateFirmware_req_t} updateFirmware
  * @return {*}
  */
-void ocpp_chargePoint_manageUpdateFirmwareRequest(const char *uniqueId, ocpp_package_UpdateFirmware_req_t updateFirmware_req)
+void ocpp_chargePoint_manageUpdateFirmwareRequest(ocpp_package_UpdateFirmware_req_t updateFirmware_req)
 {
-    if (uniqueId == NULL)
-    {
-        return;
-    }
-    // 在需要创建线程的地方
-    if (!isFirmwareThreadRunning)
-    {
-        ocpp_package_UpdateFirmware_req_t *updateFirmware_conf = malloc(sizeof(ocpp_package_UpdateFirmware_req_t));
-        memcpy(updateFirmware_conf, &updateFirmware_req, sizeof(ocpp_package_UpdateFirmware_req_t));
+    ocpp_package_UpdateFirmware_req_t *updateFirmware_conf = malloc(sizeof(ocpp_package_UpdateFirmware_req_t));
+    memcpy(updateFirmware_conf, &updateFirmware_req, sizeof(ocpp_package_UpdateFirmware_req_t));
 
-        if (!updateFirmware_conf->retriesIsUse || updateFirmware_conf->retries == 0)
-        {
-            updateFirmware_conf->retries = 1;
-        }
-        else
-        {
-            updateFirmware_conf->retries = updateFirmware_conf->retries;
-        }
-        if (!updateFirmware_conf->retryIntervalIsUse || updateFirmware_conf->retryInterval == 0)
-        {
-            updateFirmware_conf->retryInterval = 120;
-        }
-
-        pthread_t tid_firmware;
-        if (pthread_create(&tid_firmware, NULL, ocpp_chargePoint_UpdateFirmware_thread, (void *)updateFirmware_conf) == -1)
-        {
-            printf("create firmware thread fail\n");
-        }
-        else
-        {
-            ocpp_package_prepare_Status_Req(uniqueId, 0);
-            isFirmwareThreadRunning = true;
-            pthread_detach(tid_firmware);
-        }
+    if (!updateFirmware_conf->retriesIsUse || updateFirmware_conf->retries == 0)
+    {
+        updateFirmware_conf->retries = 1;
     }
     else
     {
-        ocpp_package_prepare_Status_Req(uniqueId, OCPP_PACKAGE_CONFIGURATION_STATUS_REJECTED);
-        printf("Firmware thread is already running.\n");
+        updateFirmware_conf->retries = updateFirmware_conf->retries;
+    }
+    if (!updateFirmware_conf->retryIntervalIsUse || updateFirmware_conf->retryInterval == 0)
+    {
+        updateFirmware_conf->retryInterval = 120;
+    }
+    printf("开始更新\n");
+    ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState == OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING;
+    pthread_t tid_firmware;
+    if (pthread_create(&tid_firmware, NULL, ocpp_chargePoint_UpdateFirmware_thread, (void *)updateFirmware_conf) == -1)
+    {
+        printf("create firmware thread fail\n");
+    }
+    else
+    {
+        pthread_detach(tid_firmware);
     }
 }
 
@@ -1783,34 +1097,14 @@ static bool ocpp_chargePoint_checkClearChargingProfile_Callpackage(const char *u
         if (connectorId_obj != NULL)
         {
             int connectorId = json_object_get_int(connectorId_obj);
-            if (connectorId > ocpp_chargePoint->numberOfConnector)
+            if (connectorId < 0 || connectorId > ocpp_chargePoint->numberOfConnector)
             {
-                snprintf(callError.errorDescription, 1024, "connectorId SHELL less than %d", ocpp_chargePoint->numberOfConnector);
+
+                snprintf(callError.errorDescription, 1024, "connector SHELL be >= 0 and <= %d", ocpp_chargePoint->numberOfConnector);
             }
             else
             {
                 isError = false;
-            }
-        }
-
-        if (isError == false)
-        {
-
-            if (chargingProfilePurpose_obj != NULL)
-            {
-                const char *chargingProfilePurpose_str = json_object_get_string(chargingProfilePurpose_obj);
-                int i = 0;
-                for (i = 0; i < OCPP_PACKAGE_CHARGING_PROFILE_PURPOSE_TYPE_MAX; i++)
-                {
-                    if (strcmp(chargingProfilePurpose_str, ocpp_package_ChargingProfilePurposeType_text[i]) == 0)
-                        break;
-                }
-
-                if (i >= OCPP_PACKAGE_CHARGING_PROFILE_PURPOSE_TYPE_MAX)
-                {
-                    snprintf(callError.errorDescription, 1024, "chargingProfilePurpose SHELL be ChargePointMaxProfile 、TxDefaultProfile or TxProfile");
-                    isError = true;
-                }
             }
         }
     }
@@ -1892,9 +1186,10 @@ static bool ocpp_chargePoint_checkGetCompositeSchedule_Callpackage(const char *u
             callError.errorCode = OCPP_PACKAGE_CALLERROR_ERRORCODE_PROPERTY_CONSTRAINT_VIOLATION;
 
             int connectorId = json_object_get_int(connectorId_obj);
-            if (connectorId > ocpp_chargePoint->numberOfConnector)
+            if (connectorId < 0 || connectorId > ocpp_chargePoint->numberOfConnector)
             {
-                snprintf(callError.errorDescription, 1024, "connectorId SHELL be less than %d", ocpp_chargePoint->numberOfConnector);
+
+                snprintf(callError.errorDescription, 1024, "connector SHELL be >= 0 and <= %d", ocpp_chargePoint->numberOfConnector);
             }
             else if (chargingRateUnit_obj != NULL)
             {
@@ -2117,11 +1412,11 @@ static bool ocpp_chargePoint_checkRemoteStartTransaction_Callpackage(const char 
     }
     else if (connectorId_obj != NULL)
     {
-        if (json_object_get_int(connectorId_obj) <= 0)
+        int connectorId = json_object_get_int(connectorId_obj);
+        if (connectorId < 0 || connectorId > ocpp_chargePoint->numberOfConnector)
         {
             isError = true;
-            callError.errorCode = OCPP_PACKAGE_CALLERROR_ERRORCODE_PROPERTY_CONSTRAINT_VIOLATION;
-            snprintf(callError.errorDescription, 1024, "%s", "connectorId SHALL be > 0");
+            snprintf(callError.errorDescription, 1024, "connector SHELL be >= 0 and <= %d", ocpp_chargePoint->numberOfConnector);
         }
     }
     else if (chargingProfile_obj != NULL)
@@ -2586,6 +1881,12 @@ static bool ocpp_chargePoint_checkTriggerMessage_Callpackage(const char *uniqueI
     {
 
         snprintf(callError.errorDescription, 1024, "requestedMessage SHELL be not NULL");
+        if (json_object_get_int(connectorId_obj) > ocpp_chargePoint->numberOfConnector)
+        {
+            isError = true;
+            callError.errorCode = OCPP_PACKAGE_CALLERROR_ERRORCODE_PROPERTY_CONSTRAINT_VIOLATION;
+            snprintf(callError.errorDescription, 1024, "%s", "connectorId  > MaxNumber");
+        }
     }
     else
     {
@@ -3287,8 +2588,8 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
 
         json_object *reservationId_obj = json_object_object_get(payload_obj, "reservationId");
         cancelReservation_req.reservationId = json_object_get_int(reservationId_obj);
-        ocpp_package_prepare_Status_Req(uniqueId_str,0);
-        //ocpp_chargePoint_manageCancelReservationRequest(uniqueId_str, cancelReservation_req);
+        ocpp_package_prepare_Status_Req(uniqueId_str, 3);
+        // ocpp_chargePoint_manageCancelReservationRequest(uniqueId_str, cancelReservation_req);
     }
     break;
 
@@ -3359,47 +2660,33 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         if (ocpp_chargePoint_checkClearChargingProfile_Callpackage(uniqueId_str, payload_obj))
             return;
 
-        ocpp_package_ClearChargingProfile_req_t clearChargingProfile_req;
-        memset(&clearChargingProfile_req, 0, sizeof(clearChargingProfile_req));
-
-        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
-
-        // json_object *id_obj = json_object_object_get(payload_obj, "id");
-        // json_object *connectorId_obj = json_object_object_get(payload_obj, "connectorId");
-        // json_object *chargingProfilePurpose_obj = json_object_object_get(payload_obj, "chargingProfilePurpose");
-        // json_object *stackLevel_obj = json_object_object_get(payload_obj, "stackLevel");
-
-        // if (id_obj != NULL)
-        // {
-        //     clearChargingProfile_req.idIsUse = 1;
-        //     clearChargingProfile_req.id = json_object_get_int(id_obj);
-        // }
-
-        // if (connectorId_obj != NULL)
-        // {
-        //     clearChargingProfile_req.connectorIdIsUse = 1;
-        //     clearChargingProfile_req.connectorId = json_object_get_int(connectorId_obj);
-        // }
-
-        // if (stackLevel_obj != NULL)
-        // {
-        //     clearChargingProfile_req.stackLevelIsUse = 1;
-        //     clearChargingProfile_req.stackLevel = json_object_get_int(stackLevel_obj);
-        // }
-
-        // if (chargingProfilePurpose_obj != NULL)
-        // {
-        //     clearChargingProfile_req.chargingProfilePurposeIsUse = 1;
-        //     const char *chargingProfilePurpose_str = json_object_get_string(chargingProfilePurpose_obj);
-        //     int purpose = 0;
-        //     for (purpose = 0; purpose < OCPP_PACKAGE_CHARGING_PROFILE_PURPOSE_TYPE_MAX; purpose++)
-        //         if (strcmp(chargingProfilePurpose_str, ocpp_package_ChargingProfilePurposeType_text[purpose]) == 0)
-        //             break;
-
-        //     clearChargingProfile_req.chargingProfilePurpose = purpose;
-        // }
-
-        // ocpp_chargePoint_manageClearChargingProfileRequest(uniqueId_str, clearChargingProfile_req);
+        json_object *id_obj = json_object_object_get(payload_obj, "id");
+        json_object *connectorId_obj = json_object_object_get(payload_obj, "connectorId");
+        json_object *chargingProfilePurpose_obj = json_object_object_get(payload_obj, "chargingProfilePurpose");
+        json_object *stackLevel_obj = json_object_object_get(payload_obj, "stackLevel");
+        int id = -1;
+        int connectorId = -1;
+        int stackLevel = -1;
+        if (connectorId_obj != NULL)
+        {
+            id = json_object_get_int(id_obj);
+        }
+        if (connectorId_obj != NULL)
+        {
+            connectorId = json_object_get_int(connectorId_obj);
+        }
+        if (stackLevel_obj != NULL)
+        {
+            stackLevel = json_object_get_int(stackLevel_obj);
+        }
+        if (ocpp_ChargingProfile_delete(connectorId, stackLevel, id) == 0)
+        {
+            ocpp_package_prepare_Status_Req(uniqueId_str, 0);
+        }
+        else
+        {
+            ocpp_package_prepare_Status_Req(uniqueId_str, 1);
+        }
     }
     break;
 
@@ -3414,30 +2701,37 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         if (ocpp_chargePoint_checkGetCompositeSchedule_Callpackage(uniqueId_str, payload_obj))
             return;
 
-        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
-        // ocpp_package_GetCompositeSchedule_req_t getCompositeSchedule_req;
-        // memset(&getCompositeSchedule_req, 0, sizeof(getCompositeSchedule_req));
-
-        // json_object *connectorId_obj = json_object_object_get(payload_obj, "connectorId");
-        // json_object *duration_obj = json_object_object_get(payload_obj, "duration");
-        // json_object *chargingRateUnit_obj = json_object_object_get(payload_obj, "chargingRateUnit");
-
-        // getCompositeSchedule_req.connectorId = json_object_get_int(connectorId_obj);
-        // getCompositeSchedule_req.duration = json_object_get_int(duration_obj);
-
-        // if (chargingRateUnit_obj != NULL)
-        // {
-        //     getCompositeSchedule_req.chargingRateUnitIsUse = 1;
-        //     const char *chargingRateUnit_str = json_object_get_string(chargingRateUnit_obj);
-        //     int schedule = 0;
-        //     for (schedule = 0; schedule < OCPP_PACKAGE_CHARGING_RATE_UNIT_TYPE_MAX; schedule++)
-        //     {
-        //         if (strcmp(chargingRateUnit_str, ocpp_package_ChargingRateUnitType_text[schedule]) == 0)
-        //             break;
-        //     }
-        // }
-
-        // ocpp_chargePoint_manageGetCompositeScheduleRequest(uniqueId_str, getCompositeSchedule_req);
+        ChargingProfile chargingProfiles;
+        memset(&chargingProfiles, 0, sizeof(chargingProfiles));
+        json_object *connectorId_obj = json_object_object_get(payload_obj, "connectorId");
+        json_object *duration_obj = json_object_object_get(payload_obj, "duration");
+        json_object *chargingRateUnit_obj = json_object_object_get(payload_obj, "chargingRateUnit");
+        int duration = -1;
+        char chargingRateUnit[2];
+        if (chargingRateUnit_obj)
+        {
+            strncpy(chargingRateUnit, json_object_get_string(chargingRateUnit_obj), sizeof(chargingRateUnit));
+        }
+        if (duration_obj)
+        {
+            duration = json_object_get_int(duration_obj);
+        }
+        if (connectorId_obj)
+        {
+            chargingProfiles.connectorId = json_object_get_int(connectorId_obj);
+        }
+        if (ocpp_ChargingProfile_find(chargingProfiles.connectorId, chargingRateUnit, duration, &chargingProfiles) == 0)
+        {
+            ocpp_chargePoint_manageGetCompositeScheduleRequest(uniqueId_str, chargingProfiles);
+        }
+        else
+        {
+            ocpp_package_prepare_Status_Req(uniqueId_str, 1);
+        }
+        if (chargingProfiles.chargingSchedule.chargingSchedulePeriods)
+        {
+            free(chargingProfiles.chargingSchedule.chargingSchedulePeriods);
+        }
     }
     break;
 
@@ -3447,6 +2741,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
             return;
 
         int MaxnumberOfKey = 0;
+        int i;
         ocpp_ConfigurationKey_getValue("GetConfigurationMaxKeys", &MaxnumberOfKey);
 
         ocpp_package_GetConfiguration_req_t getConfiguration_req;
@@ -3466,7 +2761,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
             getConfiguration_req.numberOfKey = numberOfKeys;
             getConfiguration_req.key = (char **)malloc(getConfiguration_req.numberOfKey * sizeof(char *));
 
-            for (int i = 0; i < getConfiguration_req.numberOfKey; i++)
+            for (i = 0; i < getConfiguration_req.numberOfKey; i++)
             {
                 struct json_object *keyElement = json_object_array_get_idx(key_obj, i);
                 if (keyElement != NULL && json_object_is_type(keyElement, json_type_string))
@@ -3481,7 +2776,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         // 在释放内存前检查是否已分配内存
         if (getConfiguration_req.key)
         {
-            for (int i = 0; i < getConfiguration_req.numberOfKey; i++)
+            for (i = 0; i < getConfiguration_req.numberOfKey; i++)
             {
                 if (getConfiguration_req.key[i]) // 检查指针是否为NULL
                 {
@@ -3499,49 +2794,56 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         if (ocpp_chargePoint_checkGetDiagnostics_Callpackage(uniqueId_str, payload_obj))
             return;
         ocpp_package_prepare_Status_Req(uniqueId_str, 0);
-        // ocpp_package_GetDiagnostics_req_t getDiagnostics_req;
-        // memset(&getDiagnostics_req, 0, sizeof(getDiagnostics_req));
+        ocpp_package_GetDiagnostics_req_t getDiagnostics_req;
+        memset(&getDiagnostics_req, 0, sizeof(getDiagnostics_req));
 
-        // json_object *location_obj = json_object_object_get(payload_obj, "location");
-        // json_object *retries_obj = json_object_object_get(payload_obj, "retries");
-        // json_object *retryInterval_obj = json_object_object_get(payload_obj, "retryInterval");
-        // json_object *startTime_obj = json_object_object_get(payload_obj, "startTime");
-        // json_object *stopTime_obj = json_object_object_get(payload_obj, "stopTime");
+        json_object *location_obj = json_object_object_get(payload_obj, "location");
+        json_object *retries_obj = json_object_object_get(payload_obj, "retries");
+        json_object *retryInterval_obj = json_object_object_get(payload_obj, "retryInterval");
+        json_object *startTime_obj = json_object_object_get(payload_obj, "startTime");
+        json_object *stopTime_obj = json_object_object_get(payload_obj, "stopTime");
 
-        // const char *location_str = json_object_get_string(location_obj);
-        // strncpy(getDiagnostics_req.location, location_str, 256);
+        const char *location_str = json_object_get_string(location_obj);
+        strncpy(getDiagnostics_req.location, location_str, 256);
 
-        // getDiagnostics_req.retriesIsUse = 0;
-        // if (retries_obj != NULL)
-        // {
-        //     getDiagnostics_req.retriesIsUse = 1;
-        //     getDiagnostics_req.retries = json_object_get_int(retries_obj);
-        // }
+        getDiagnostics_req.retriesIsUse = 0;
+        if (retries_obj != NULL)
+        {
+            getDiagnostics_req.retriesIsUse = 1;
+            getDiagnostics_req.retries = json_object_get_int(retries_obj);
+        }
 
-        // getDiagnostics_req.retryIntervalIsUse = 0;
-        // if (retryInterval_obj != NULL)
-        // {
-        //     getDiagnostics_req.retryIntervalIsUse = 1;
-        //     getDiagnostics_req.retryInterval = json_object_get_int(retryInterval_obj);
-        // }
+        getDiagnostics_req.retryIntervalIsUse = 0;
+        if (retryInterval_obj != NULL)
+        {
+            getDiagnostics_req.retryIntervalIsUse = 1;
+            getDiagnostics_req.retryInterval = json_object_get_int(retryInterval_obj);
+        }
 
-        // getDiagnostics_req.startTimeIsUse = 0;
-        // if (startTime_obj != NULL)
-        // {
-        //     getDiagnostics_req.startTimeIsUse = 1;
-        //     const char *startTime_str = json_object_get_string(startTime_obj);
-        //     strncpy(getDiagnostics_req.startTime, startTime_str, 32);
-        // }
+        getDiagnostics_req.startTimeIsUse = 0;
+        if (startTime_obj != NULL)
+        {
+            getDiagnostics_req.startTimeIsUse = 1;
+            const char *startTime_str = json_object_get_string(startTime_obj);
+            strncpy(getDiagnostics_req.startTime, startTime_str, 32);
+        }
 
-        // getDiagnostics_req.stopTimeIsUse = 0;
-        // if (stopTime_obj != NULL)
-        // {
-        //     getDiagnostics_req.stopTimeIsUse = 1;
-        //     const char *stopTime_str = json_object_get_string(stopTime_obj);
-        //     strncpy(getDiagnostics_req.stopTime, stopTime_str, 32);
-        // }
-
-        // ocpp_chargePoint_manageGetDiagnosticsRequest(uniqueId_str, getDiagnostics_req);
+        getDiagnostics_req.stopTimeIsUse = 0;
+        if (stopTime_obj != NULL)
+        {
+            getDiagnostics_req.stopTimeIsUse = 1;
+            const char *stopTime_str = json_object_get_string(stopTime_obj);
+            strncpy(getDiagnostics_req.stopTime, stopTime_str, 32);
+        }
+        if (ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus == OCPP_PACKAGE_DIAGNOSTICS_STATUS_IDLE)
+        {
+            ocpp_chargePoint_manageGetDiagnosticsRequest(getDiagnostics_req);
+            ocpp_package_prepare_Status_Req(uniqueId_str, 0);
+        }
+        else
+        {
+            ocpp_package_prepare_Status_Req(uniqueId_str, 1);
+        }
     }
     break;
 
@@ -3560,31 +2862,129 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         if (ocpp_chargePoint_checkRemoteStartTransaction_Callpackage(uniqueId_str, payload_obj))
             return;
 
-        json_object *idTag_obj = json_object_object_get(payload_obj, "idTag");
-        json_object *connectorId_obj = json_object_object_get(payload_obj, "connectorId");
-        json_object *chargingProfile_obj = json_object_object_get(payload_obj, "chargingProfile");
+        json_object *idTag_obj = NULL;
+        json_object *connectorId_obj = NULL;
+        json_object *chargingProfile_obj = NULL;
 
-        ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req;
-        memset(&remoteStartTransaction_req, 0, sizeof(remoteStartTransaction_req));
-
-        const char *idTag_str = json_object_get_string(idTag_obj);
-        printf("idTag_str = %s", idTag_str);
-        strncpy(remoteStartTransaction_req.idTag, idTag_str, 20);
-
-        remoteStartTransaction_req.connectorIdIsUse = 0;
-        if (connectorId_obj != NULL)
+        if (json_object_object_get_ex(payload_obj, "idTag", &idTag_obj) &&
+            json_object_object_get_ex(payload_obj, "connectorId", &connectorId_obj))
         {
-            remoteStartTransaction_req.connectorIdIsUse = 1;
-            remoteStartTransaction_req.connectorId = json_object_get_int(connectorId_obj);
-        }
+            ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req;
+            memset(&remoteStartTransaction_req, 0, sizeof(remoteStartTransaction_req));
 
-        // chargingProfile not impletement
-        remoteStartTransaction_req.chargingProfileIsUse = 0;
-        if (chargingProfile_obj != NULL)
-        {
+            const char *idTag_str = json_object_get_string(idTag_obj);
+            if (idTag_str != NULL)
+            {
+                strncpy(remoteStartTransaction_req.idTag, idTag_str, sizeof(remoteStartTransaction_req.idTag));
+            }
+
+            remoteStartTransaction_req.connectorIdIsUse = 0;
+            if (json_object_get_type(connectorId_obj) == json_type_int)
+            {
+                remoteStartTransaction_req.connectorIdIsUse = 1;
+                remoteStartTransaction_req.connectorId = json_object_get_int(connectorId_obj);
+            }
+
+            remoteStartTransaction_req.chargingProfileIsUse = 0;
+            if (json_object_object_get_ex(payload_obj, "chargingProfile", &chargingProfile_obj))
+            {
+                ChargingProfile chargingProfiles;
+
+                json_object *chargeProfileId_obj = json_object_object_get(chargingProfile_obj, "chargingProfileId");
+                if (json_object_get_type(chargeProfileId_obj) == json_type_int)
+                {
+                    chargingProfiles.chargingProfileId = json_object_get_int(chargeProfileId_obj);
+                }
+                // 解析 chargingProfileKind 字段
+                json_object *chargingProfileKind_obj = json_object_object_get(chargingProfile_obj, "chargingProfileKind");
+                const char *chargingProfileKind_str = json_object_get_string(chargingProfileKind_obj);
+                if (chargingProfileKind_str != NULL)
+                {
+                    strncpy(chargingProfiles.chargingProfileKind, chargingProfileKind_str, sizeof(chargingProfiles.chargingProfileKind));
+                }
+                // 解析 chargingProfilePurpose 字段
+                json_object *chargingProfilePurpose_obj = json_object_object_get(chargingProfile_obj, "chargingProfilePurpose");
+                const char *chargingProfilePurpose_str = json_object_get_string(chargingProfilePurpose_obj);
+                if (chargingProfilePurpose_str != NULL)
+                {
+                    strncpy(chargingProfiles.chargingProfilePurpose, chargingProfilePurpose_str, sizeof(chargingProfiles.chargingProfilePurpose) - 1);
+                    // 更严格的条件检查
+                    if (strcmp(chargingProfiles.chargingProfilePurpose, "TxProfile") == 0)
+                    {
+                        chargingProfiles.transactionId = 1;
+                    }
+                    else
+                    {
+                        chargingProfiles.transactionId = 0;
+                    }
+                }
+                // 解析 chargingSchedule 对象
+                json_object *chargingSchedule_obj = json_object_object_get(chargingProfile_obj, "chargingSchedule");
+                if (chargingSchedule_obj != NULL)
+                {
+                    // 解析 duration 字段
+                    json_object *duration_obj = json_object_object_get(chargingSchedule_obj, "duration");
+                    if (json_object_get_type(duration_obj) == json_type_int)
+                    {
+                        chargingProfiles.chargingSchedule.duration = json_object_get_int(duration_obj);
+                    }
+                    // 解析 startSchedule 字段
+                    json_object *startSchedule_obj = json_object_object_get(chargingSchedule_obj, "startSchedule");
+                    const char *startSchedule_str = json_object_get_string(startSchedule_obj);
+                    if (startSchedule_str != NULL)
+                    {
+                        strncpy(chargingProfiles.chargingSchedule.startSchedule, startSchedule_str, sizeof(chargingProfiles.chargingSchedule.startSchedule));
+                    }
+                    // 解析 chargingRateUnit 字段
+                    json_object *chargingRateUnit_obj = json_object_object_get(chargingSchedule_obj, "chargingRateUnit");
+                    const char *chargingRateUnit_str = json_object_get_string(chargingRateUnit_obj);
+                    if (chargingRateUnit_str != NULL)
+                    {
+                        strncpy(chargingProfiles.chargingSchedule.chargingRateUnit, chargingRateUnit_str, sizeof(chargingProfiles.chargingSchedule.chargingRateUnit));
+                    }
+                    // 解析 chargingSchedulePeriod 数组
+                    json_object *chargingSchedulePeriod_obj = json_object_object_get(chargingSchedule_obj, "chargingSchedulePeriod");
+                    if (chargingSchedulePeriod_obj != NULL)
+                    {
+                        chargingProfiles.chargingSchedule.numPeriods = json_object_array_length(chargingSchedulePeriod_obj);
+                        chargingProfiles.chargingSchedule.chargingSchedulePeriods = (ChargingSchedulePeriod *)malloc(chargingProfiles.chargingSchedule.numPeriods * sizeof(ChargingSchedulePeriod));
+                        if (chargingProfiles.chargingSchedule.chargingSchedulePeriods != NULL)
+                        {
+                            int i;
+                            // 在这里可以遍历 chargingSchedulePeriod 数组并解析每个元素
+                            for (i = 0; i < chargingProfiles.chargingSchedule.numPeriods; i++)
+                            {
+                                json_object *period_obj = json_object_array_get_idx(chargingSchedulePeriod_obj, i);
+
+                                // 解析 chargingSchedulePeriod 的字段，例如 startPeriod、limit、numberPhases
+                                json_object *startPeriod_obj = json_object_object_get(period_obj, "startPeriod");
+                                if (json_object_get_type(startPeriod_obj) == json_type_int)
+                                {
+                                    chargingProfiles.chargingSchedule.chargingSchedulePeriods[i].startPeriod = json_object_get_int(startPeriod_obj);
+                                }
+
+                                json_object *limit_obj = json_object_object_get(period_obj, "limit");
+                                if (json_object_get_type(limit_obj) == json_type_double)
+                                {
+                                    chargingProfiles.chargingSchedule.chargingSchedulePeriods[i].limit = json_object_get_double(limit_obj);
+                                }
+
+                                json_object *numberPhases_obj = json_object_object_get(period_obj, "numberPhases");
+                                if (json_object_get_type(numberPhases_obj) == json_type_int)
+                                {
+                                    chargingProfiles.chargingSchedule.chargingSchedulePeriods[i].numberPhases = json_object_get_int(numberPhases_obj);
+                                }
+                            }
+                            free(chargingProfiles.chargingSchedule.chargingSchedulePeriods);
+                        }
+                    }
+
+                    ocpp_ChargingProfile_insert(remoteStartTransaction_req.connectorId, &chargingProfiles);
+                }
+            }
+            printf("接受到远程启动充电\n");
+            ocpp_chargePoint_manageRemoteStartTransaction_Req(uniqueId_str, remoteStartTransaction_req);
         }
-        printf("接受到远程启动充电\n");
-        ocpp_chargePoint_manageRemoteStartTransaction_Req(uniqueId_str, remoteStartTransaction_req);
     }
     break;
 
@@ -3599,7 +2999,6 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         memset(&remoteStopTransaction_req, 0, sizeof(remoteStopTransaction_req));
 
         remoteStopTransaction_req.transactionId = json_object_get_int(transactionId_obj);
-
         ocpp_chargePoint_manageRemoteStopTransactionRequest(uniqueId_str, remoteStopTransaction_req);
     }
     break;
@@ -3609,34 +3008,32 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         if (ocpp_chargePoint_checkReserveNow_Callpackage(uniqueId_str, payload_obj))
             return;
 
-        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
-        // ocpp_package_ReserveNow_req_t reserveNow_req;
-        // memset(&reserveNow_req, 0, sizeof(reserveNow_req));
+        ocpp_package_ReserveNow_req_t reserveNow_req;
+        memset(&reserveNow_req, 0, sizeof(reserveNow_req));
 
-        // json_object *connectorId_obj = json_object_object_get(payload_obj, "connectorId");
-        // json_object *expiryDate_obj = json_object_object_get(payload_obj, "expiryDate");
-        // json_object *idTag_obj = json_object_object_get(payload_obj, "idTag");
-        // json_object *parentIdTag_obj = json_object_object_get(payload_obj, "parentIdTag");
-        // json_object *reservationId_obj = json_object_object_get(payload_obj, "reservationId");
+        json_object *connectorId_obj = json_object_object_get(payload_obj, "connectorId");
+        json_object *expiryDate_obj = json_object_object_get(payload_obj, "expiryDate");
+        json_object *idTag_obj = json_object_object_get(payload_obj, "idTag");
+        json_object *parentIdTag_obj = json_object_object_get(payload_obj, "parentIdTag");
+        json_object *reservationId_obj = json_object_object_get(payload_obj, "reservationId");
 
-        // reserveNow_req.connectorId = json_object_get_int(connectorId_obj);
-        // reserveNow_req.reservationId = json_object_get_int(reservationId_obj);
+        reserveNow_req.connectorId = json_object_get_int(connectorId_obj);
+        reserveNow_req.reservationId = json_object_get_int(reservationId_obj);
 
-        // const char *expiryDate_str = json_object_get_string(expiryDate_obj);
-        // const char *idTag_str = json_object_get_string(idTag_obj);
+        const char *expiryDate_str = json_object_get_string(expiryDate_obj);
+        const char *idTag_str = json_object_get_string(idTag_obj);
 
-        // strncpy(reserveNow_req.expiryDate, expiryDate_str, 32);
-        // strncpy(reserveNow_req.idTag, idTag_str, OCPP_AUTHORIZATION_IDTAG_LEN);
+        strncpy(reserveNow_req.expiryDate, expiryDate_str, 32);
+        strncpy(reserveNow_req.idTag, idTag_str, OCPP_AUTHORIZATION_IDTAG_LEN);
 
-        // reserveNow_req.parentIdTagIsUse = 0;
-        // if (parentIdTag_obj != NULL)
-        // {
-        //     reserveNow_req.parentIdTagIsUse = 1;
-        //     const char *parentIdTag_str = json_object_get_string(parentIdTag_obj);
-        //     strncpy(reserveNow_req.parentIdTag, parentIdTag_str, OCPP_AUTHORIZATION_IDTAG_LEN);
-        // }
-
-        // ocpp_chargePoint_manageReserveNowRequest(uniqueId_str, reserveNow_req);
+        reserveNow_req.parentIdTagIsUse = 0;
+        if (parentIdTag_obj != NULL)
+        {
+            reserveNow_req.parentIdTagIsUse = 1;
+            const char *parentIdTag_str = json_object_get_string(parentIdTag_obj);
+            strncpy(reserveNow_req.parentIdTag, parentIdTag_str, OCPP_AUTHORIZATION_IDTAG_LEN);
+        }
+        ocpp_package_prepare_Status_Req(uniqueId_str, 3);
     }
     break;
 
@@ -3762,13 +3159,13 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         if (ocpp_chargePoint_checkSetChargingProfile_Callpackage(uniqueId_str, payload_obj))
             return;
 
-        ocpp_package_SetChargingProfile_req_t setChargingProfile_req;
-        memset(&setChargingProfile_req, 0, sizeof(setChargingProfile_req));
+        ChargingProfile chargingProfiles;
+        memset(&chargingProfiles, 0, sizeof(chargingProfiles));
         // 解析 payload_obj 并填充结构体
         struct json_object *connectorIdObj = NULL;
         if (json_object_object_get_ex(payload_obj, "connectorId", &connectorIdObj))
         {
-            setChargingProfile_req.connectorId = json_object_get_int(connectorIdObj);
+            chargingProfiles.connectorId = json_object_get_int(connectorIdObj);
         }
 
         struct json_object *csChargingProfilesObj = NULL;
@@ -3777,46 +3174,46 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
             struct json_object *chargingProfileIdObj = NULL;
             if (json_object_object_get_ex(csChargingProfilesObj, "chargingProfileId", &chargingProfileIdObj))
             {
-                setChargingProfile_req.csChargingProfiles.chargingProfileId = json_object_get_int(chargingProfileIdObj);
+                chargingProfiles.chargingProfileId = json_object_get_int(chargingProfileIdObj);
             }
 
             struct json_object *transactionIdObj = NULL;
             if (json_object_object_get_ex(csChargingProfilesObj, "transactionId", &transactionIdObj))
             {
-                setChargingProfile_req.csChargingProfiles.transactionId = json_object_get_int(transactionIdObj);
+                chargingProfiles.transactionId = json_object_get_int(transactionIdObj);
             }
 
             struct json_object *stackLevelObj = NULL;
             if (json_object_object_get_ex(csChargingProfilesObj, "stackLevel", &stackLevelObj))
             {
-                setChargingProfile_req.csChargingProfiles.stackLevel = json_object_get_int(stackLevelObj);
+                chargingProfiles.stackLevel = json_object_get_int(stackLevelObj);
             }
             struct json_object *vaildFromObj = NULL;
-            if (json_object_object_get_ex(csChargingProfilesObj, "vaildFrom", &vaildFromObj))
+            if (json_object_object_get_ex(csChargingProfilesObj, "validFrom", &vaildFromObj))
             {
-                setChargingProfile_req.csChargingProfiles.vaildFrom = json_object_get_int(vaildFromObj);
+                strncpy(chargingProfiles.validFrom, json_object_get_string(vaildFromObj), sizeof(chargingProfiles.validFrom));
             }
             struct json_object *vaildToObj = NULL;
-            if (json_object_object_get_ex(csChargingProfilesObj, "vaildTo", &vaildToObj))
+            if (json_object_object_get_ex(csChargingProfilesObj, "validTo", &vaildToObj))
             {
-                setChargingProfile_req.csChargingProfiles.vaildTo = json_object_get_int(vaildToObj);
+                strncpy(chargingProfiles.validTo, json_object_get_string(vaildToObj), sizeof(chargingProfiles.validTo));
             }
             struct json_object *chargingProfilePurposeObj = NULL;
             if (json_object_object_get_ex(csChargingProfilesObj, "chargingProfilePurpose", &chargingProfilePurposeObj))
             {
-                strncpy(setChargingProfile_req.csChargingProfiles.chargingProfilePurpose, json_object_get_string(chargingProfilePurposeObj), sizeof(setChargingProfile_req.csChargingProfiles.chargingProfilePurpose));
+                strncpy(chargingProfiles.chargingProfilePurpose, json_object_get_string(chargingProfilePurposeObj), sizeof(chargingProfiles.chargingProfilePurpose));
             }
 
             struct json_object *chargingProfileKindObj = NULL;
             if (json_object_object_get_ex(csChargingProfilesObj, "chargingProfileKind", &chargingProfileKindObj))
             {
-                strncpy(setChargingProfile_req.csChargingProfiles.chargingProfileKind, json_object_get_string(chargingProfileKindObj), sizeof(setChargingProfile_req.csChargingProfiles.chargingProfileKind));
+                strncpy(chargingProfiles.chargingProfileKind, json_object_get_string(chargingProfileKindObj), sizeof(chargingProfiles.chargingProfileKind));
             }
 
             struct json_object *recurrencyKindObj = NULL;
             if (json_object_object_get_ex(csChargingProfilesObj, "recurrencyKind", &recurrencyKindObj))
             {
-                strncpy(setChargingProfile_req.csChargingProfiles.recurrencyKind, json_object_get_string(recurrencyKindObj), sizeof(setChargingProfile_req.csChargingProfiles.recurrencyKind));
+                strncpy(chargingProfiles.recurrencyKind, json_object_get_string(recurrencyKindObj), sizeof(chargingProfiles.recurrencyKind));
             }
 
             struct json_object *chargingScheduleObj = NULL;
@@ -3825,27 +3222,27 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
                 struct json_object *chargingRateUnitObj = NULL;
                 if (json_object_object_get_ex(chargingScheduleObj, "chargingRateUnit", &chargingRateUnitObj))
                 {
-                    strncpy(setChargingProfile_req.csChargingProfiles.chargingSchedule.chargingRateUnit, json_object_get_string(chargingRateUnitObj), sizeof(setChargingProfile_req.csChargingProfiles.chargingSchedule.chargingRateUnit));
+                    strncpy(chargingProfiles.chargingSchedule.chargingRateUnit, json_object_get_string(chargingRateUnitObj), sizeof(chargingProfiles.chargingSchedule.chargingRateUnit));
                 }
                 struct json_object *startScheduleObj = NULL;
                 if (json_object_object_get_ex(csChargingProfilesObj, "startSchedule", &startScheduleObj))
                 {
-                    setChargingProfile_req.csChargingProfiles.chargingSchedule.startSchedule = json_object_get_int(startScheduleObj);
+                    strncpy(chargingProfiles.chargingSchedule.startSchedule, json_object_get_string(startScheduleObj), sizeof(chargingProfiles.chargingSchedule.startSchedule));
                 }
                 struct json_object *durationObj = NULL;
                 if (json_object_object_get_ex(csChargingProfilesObj, "duration", &durationObj))
                 {
-                    setChargingProfile_req.csChargingProfiles.chargingSchedule.duration = json_object_get_int(durationObj);
+                    chargingProfiles.chargingSchedule.duration = json_object_get_int(durationObj);
                 }
                 struct json_object *chargingSchedulePeriodArray = NULL;
                 if (json_object_object_get_ex(chargingScheduleObj, "chargingSchedulePeriod", &chargingSchedulePeriodArray))
                 {
                     int arrayLength = json_object_array_length(chargingSchedulePeriodArray);
-
-                    // 分配内存以保存chargingSchedulePeriod数组
-                    setChargingProfile_req.csChargingProfiles.chargingSchedule.chargingSchedulePeriod = (ocpp_package_chargingSchedulePeriod_t *)malloc(arrayLength * sizeof(ocpp_package_chargingSchedulePeriod_t));
-                    setChargingProfile_req.csChargingProfiles.chargingSchedule.numberOfchargingSchedulePeriod = arrayLength;
-                    for (int i = 0; i < arrayLength; i++)
+                    // 分配内存以保存chargingSchedulePeriod数组;
+                    chargingProfiles.chargingSchedule.numPeriods = arrayLength;
+                    chargingProfiles.chargingSchedule.chargingSchedulePeriods = (ChargingSchedulePeriod *)malloc(arrayLength * sizeof(ChargingSchedulePeriod));
+                    int i;
+                    for (i = 0; i < arrayLength; i++)
                     {
                         struct json_object *chargingSchedulePeriodObj = json_object_array_get_idx(chargingSchedulePeriodArray, i);
                         if (chargingSchedulePeriodObj != NULL)
@@ -3853,30 +3250,38 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
                             struct json_object *startPeriodObj = NULL;
                             if (json_object_object_get_ex(chargingSchedulePeriodObj, "startPeriod", &startPeriodObj))
                             {
-                                setChargingProfile_req.csChargingProfiles.chargingSchedule.chargingSchedulePeriod[i].startPeriod = json_object_get_int(startPeriodObj);
+                                chargingProfiles.chargingSchedule.chargingSchedulePeriods[i].startPeriod = json_object_get_int(startPeriodObj);
                             }
 
                             struct json_object *limitObj = NULL;
                             if (json_object_object_get_ex(chargingSchedulePeriodObj, "limit", &limitObj))
                             {
-                                setChargingProfile_req.csChargingProfiles.chargingSchedule.chargingSchedulePeriod[i].limit = json_object_get_double(limitObj);
+                                chargingProfiles.chargingSchedule.chargingSchedulePeriods[i].limit = json_object_get_double(limitObj);
                             }
                             struct json_object *numberPhasesObj = NULL;
                             if (json_object_object_get_ex(chargingSchedulePeriodObj, "numberPhases", &numberPhasesObj))
                             {
-                                setChargingProfile_req.csChargingProfiles.chargingSchedule.chargingSchedulePeriod[i].numberPhases = json_object_get_int(numberPhasesObj);
+                                chargingProfiles.chargingSchedule.chargingSchedulePeriods[i].numberPhases = json_object_get_int(numberPhasesObj);
                             }
                         }
                     }
                 }
             }
         }
-        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
-        //       ocpp_chargePoint_manageSetChargingProfileRequest(uniqueId_str, &setChargingProfile_req);
-        if (setChargingProfile_req.csChargingProfiles.chargingSchedule.chargingSchedulePeriod != NULL)
+
+        if (ocpp_ChargingProfile_insert(chargingProfiles.connectorId, &chargingProfiles) == 0)
         {
-            free(setChargingProfile_req.csChargingProfiles.chargingSchedule.chargingSchedulePeriod);
-            setChargingProfile_req.csChargingProfiles.chargingSchedule.chargingSchedulePeriod = NULL;
+            ocpp_package_prepare_Status_Req(uniqueId_str, 0);
+        }
+        else
+        {
+            ocpp_package_prepare_Status_Req(uniqueId_str, 1);
+        }
+
+        printChargingProfile(&chargingProfiles);
+        if (chargingProfiles.chargingSchedule.chargingSchedulePeriods)
+        {
+            free(chargingProfiles.chargingSchedule.chargingSchedulePeriods);
         }
     }
     break;
@@ -3945,24 +3350,30 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         strncpy(updateFirmware_req.location, location_str, 256);
         strncpy(updateFirmware_req.retrieveDate, retrieveDate_str, 32);
 
-        updateFirmware_req.retriesIsUse = 0;
         if (retries_obj != NULL)
         {
             updateFirmware_req.retriesIsUse = 1;
             updateFirmware_req.retries = json_object_get_int(retries_obj);
         }
 
-        updateFirmware_req.retryIntervalIsUse = 0;
         if (retryInterval_obj != NULL)
         {
             updateFirmware_req.retryIntervalIsUse = 1;
             updateFirmware_req.retryInterval = json_object_get_int(retryInterval_obj);
         }
-
-        ocpp_chargePoint_manageUpdateFirmwareRequest(uniqueId_str, updateFirmware_req);
+        printf("ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = %d\n", ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState);
+        // 在需要创建线程的地方
+        if (ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState == OCPP_PACKAGE_FIRMWARE_STATUS_IDLE)
+        {
+            ocpp_chargePoint_manageUpdateFirmwareRequest(updateFirmware_req);
+            ocpp_package_prepare_Status_Req(uniqueId_str, OCPP_PACKAGE_CONFIGURATION_STATUS_ACCEPTED);
+        }
+        else
+        {
+            ocpp_package_prepare_Status_Req(uniqueId_str, OCPP_PACKAGE_CONFIGURATION_STATUS_REJECTED);
+        }
+        break;
     }
-    break;
-
     default:
     {
         ocpp_package_CallError_t callError;
@@ -4070,10 +3481,8 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
 
     case OCPP_PACKAGE_AUTHORIZE:
     {
-        printf("Authoriza\n");
         if (ocpp_chargePoint_checkAuthorize_callResultPackage(uniqueId_str, payload_obj))
             return;
-
         json_object *idTagInfo_obj = json_object_object_get(payload_obj, "idTagInfo");
         json_object *status_obj = json_object_object_get(idTagInfo_obj, "status");
         json_object *expiryDate_obj = json_object_object_get(idTagInfo_obj, "expiryDate");
@@ -4081,10 +3490,8 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
 
         ocpp_package_Authorize_conf_t authorize;
         memset(&authorize, 0, sizeof(authorize));
-
         // Get Authorize status
         const char *status_str = json_object_get_string(status_obj);
-
         int i = 0;
         for (i = 0; i < OCPP_LOCAL_AUTHORIZATION_MAX; i++)
         {
@@ -4093,44 +3500,35 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         }
 
         authorize.idTagInfo.AuthorizationStatus = i;
-
         if (expiryDate_obj != NULL)
         {
             authorize.idTagInfo.expiryDateIsUse = 1;
             const char *expiryDate_str = json_object_get_string(expiryDate_obj);
-            strncpy(authorize.idTagInfo.expiryDate, expiryDate_str, 32);
+            memcpy(authorize.idTagInfo.expiryDate, expiryDate_str, sizeof(authorize.idTagInfo.expiryDate));
         }
 
         if (parentIdTag_obj != NULL)
         {
             authorize.idTagInfo.parentIdTagIsUse = 1;
             const char *parentIdTag_str = json_object_get_string(parentIdTag_obj);
-            strncpy(authorize.idTagInfo.parentIdTag, parentIdTag_str, OCPP_AUTHORIZATION_IDTAG_LEN);
+            memcpy(authorize.idTagInfo.parentIdTag, parentIdTag_str, OCPP_AUTHORIZATION_IDTAG_LEN);
         }
 
         char idTag[OCPP_AUTHORIZATION_IDTAG_LEN] = {0};
         // set Authorization result
         for (i = 0; i <= ocpp_chargePoint->numberOfConnector; i++)
         {
-            if (ocpp_chargePoint->authorizetion[i]->isWaitAuthoriza)
+            if (strcmp(ocpp_chargePoint->authorizetion[i]->lastUniqueId, uniqueId_str) == 0)
             {
-
-                strncpy(idTag, ocpp_chargePoint->authorizetion[i]->idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
-
-                ocpp_chargePoint->authorizetion[i]->isWaitAuthoriza = false;
-
-                if (strcmp(ocpp_chargePoint->authorizetion[i]->lastUniqueId, uniqueId_str) == 0)
+                if (authorize.idTagInfo.AuthorizationStatus == OCPP_LOCAL_AUTHORIZATION_ACCEPTED)
                 {
-                    if (authorize.idTagInfo.AuthorizationStatus == OCPP_LOCAL_AUTHORIZATION_ACCEPTED)
-                    {
-                        ocpp_chargePoint->setAuthorizeResult(i, true);
-                    }
-                    else
-                    {
-                        ocpp_chargePoint->setAuthorizeResult(i, false);
-                    }
+                    memcpy(idTag, ocpp_chargePoint->authorizetion[i]->idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
+                    ocpp_chargePoint->setAuthorizeResult(i, true);
                 }
-
+                else
+                {
+                    ocpp_chargePoint->setAuthorizeResult(i, false);
+                }
                 break;
             }
         }
@@ -4146,12 +3544,12 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
 
         if (authorize.idTagInfo.expiryDateIsUse)
         {
-            strncpy(cache_record->expiryDate, authorize.idTagInfo.expiryDate, 32);
+            memcpy(cache_record->expiryDate, authorize.idTagInfo.expiryDate, sizeof(cache_record->expiryDate));
         }
 
         if (authorize.idTagInfo.parentIdTagIsUse)
         {
-            strncpy(cache_record->parentIdTag, authorize.idTagInfo.parentIdTag, OCPP_AUTHORIZATION_IDTAG_LEN);
+            memcpy(cache_record->parentIdTag, authorize.idTagInfo.parentIdTag, OCPP_AUTHORIZATION_IDTAG_LEN);
         }
 
         ocpp_localAuthorization_Cache_write(cache_record);
@@ -4165,7 +3563,6 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
     {
         if (ocpp_chargePoint_checkStartTransaction_callResultPackage(uniqueId_str, payload_obj))
             return;
-
         json_object *idTagInfo_obj = json_object_object_get(payload_obj, "idTagInfo");
         json_object *transactionId_obj = json_object_object_get(payload_obj, "transactionId");
         json_object *status_obj = json_object_object_get(idTagInfo_obj, "status");
@@ -4174,14 +3571,10 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
 
         ocpp_package_StartTransaction_conf_t startTransaction;
         memset(&startTransaction, 0, sizeof(startTransaction));
-
         // Extract data
         startTransaction.transactionId = json_object_get_int(transactionId_obj);
-        printf("uniqueId_str = %s\n", uniqueId_str);
-        updateStartTransactionIsSentByUniqueId(uniqueId_str, 1);
-        updateTransactionIDsByUniqueID(uniqueId_str, startTransaction.transactionId);
         const char *status_str = json_object_get_string(status_obj);
-        int i = 0;
+        int i;
         for (i = 0; i < OCPP_LOCAL_AUTHORIZATION_MAX; i++)
         {
             if (strcmp(status_str, ocpp_localAuthorizationStatus_Text[i]) == 0)
@@ -4195,7 +3588,7 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         {
             startTransaction.idTagInfo.expiryDateIsUse = 1;
             const char *expiryDate_str = json_object_get_string(expiryDate_obj);
-            strncpy(startTransaction.idTagInfo.expiryDate, expiryDate_str, OCPP_AUTHORIZATION_IDTAG_LEN);
+            memcpy(startTransaction.idTagInfo.expiryDate, expiryDate_str, 32);
         }
 
         if (parentIdTag_obj != NULL)
@@ -4203,21 +3596,16 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
             startTransaction.idTagInfo.parentIdTagIsUse = 1;
             const char *parentIdTag_str = json_object_get_string(parentIdTag_obj);
         }
-
         // 找到正在交易的枪号
         for (i = 1; i <= ocpp_chargePoint->numberOfConnector; i++)
         {
-            if (ocpp_chargePoint->transaction_obj[i]->isTransaction)
-                if (strcmp(ocpp_chargePoint->transaction_obj[i]->lastUniqueId, uniqueId_str) == 0)
-                {
-                    ocpp_chargePoint->transaction_obj[i]->isRecStartTransaction_Conf = true;
-                    memcpy(&ocpp_chargePoint->transaction_obj[i]->startTransaction, &startTransaction, sizeof(ocpp_package_StartTransaction_conf_t));
-                    if (strcmp(status_str, "Accepted"))
-                    {
-                        ocpp_chargePoint->transaction_obj[i]->isStop = true;
-                    }
-                    break;
-                }
+            if (strcmp(ocpp_chargePoint->transaction_obj[i]->lastUniqueId, uniqueId_str) == 0 && ocpp_chargePoint->transaction_obj[i]->isTransaction)
+            {
+
+                ocpp_chargePoint->transaction_obj[i]->isRecStartTransaction_Conf = true;
+                memcpy(&ocpp_chargePoint->transaction_obj[i]->startTransaction, &startTransaction, sizeof(ocpp_package_StartTransaction_conf_t));
+                break;
+            }
         }
 
         if (i > ocpp_chargePoint->numberOfConnector)
@@ -4225,17 +3613,17 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         // 更新认证缓存
         ocpp_localAuthorization_cache_record_t *cache_record = (ocpp_localAuthorization_cache_record_t *)calloc(1, sizeof(ocpp_localAuthorization_cache_record_t));
 
-        strncpy(cache_record->IdTag, ocpp_chargePoint->transaction_obj[i]->startIdTag, OCPP_AUTHORIZATION_IDTAG_LEN);
+        memcpy(cache_record->IdTag, ocpp_chargePoint->transaction_obj[i]->startIdTag, OCPP_AUTHORIZATION_IDTAG_LEN);
         cache_record->status = startTransaction.idTagInfo.AuthorizationStatus;
 
         if (startTransaction.idTagInfo.expiryDateIsUse)
         {
-            strncpy(cache_record->expiryDate, startTransaction.idTagInfo.expiryDate, 32);
+            memcpy(cache_record->expiryDate, startTransaction.idTagInfo.expiryDate, 32);
         }
 
         if (startTransaction.idTagInfo.parentIdTagIsUse)
         {
-            strncpy(cache_record->parentIdTag, startTransaction.idTagInfo.parentIdTag, OCPP_AUTHORIZATION_IDTAG_LEN);
+            memcpy(cache_record->parentIdTag, startTransaction.idTagInfo.parentIdTag, OCPP_AUTHORIZATION_IDTAG_LEN);
         }
 
         ocpp_localAuthorization_Cache_write(cache_record);
@@ -4256,8 +3644,6 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         ocpp_package_StopTransaction_conf_t stopTransaction;
         memset(&stopTransaction, 0, sizeof(stopTransaction));
         int i = 0;
-        printf("uniqueId_str = %s\n", uniqueId_str);
-        updateStartTransactionIsCompletedByUniqueID(uniqueId_str, 1);
         if (idTagInfo_obj != NULL)
         {
             stopTransaction.idTagInfoIsUse = 1;
@@ -4279,55 +3665,43 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
             {
                 stopTransaction.idTagInfo.expiryDateIsUse = 1;
                 const char *expiryDate_str = json_object_get_string(expiryDate_obj);
-                strncpy(stopTransaction.idTagInfo.expiryDate, expiryDate_str, 32);
+                memcpy(stopTransaction.idTagInfo.expiryDate, expiryDate_str, 32);
             }
 
             if (parentIdTag_obj != NULL)
             {
                 stopTransaction.idTagInfo.parentIdTagIsUse = 1;
                 const char *parentIdTag_str = json_object_get_string(parentIdTag_obj);
-                strncpy(stopTransaction.idTagInfo.parentIdTag, parentIdTag_str, OCPP_AUTHORIZATION_IDTAG_LEN);
+                memcpy(stopTransaction.idTagInfo.parentIdTag, parentIdTag_str, OCPP_AUTHORIZATION_IDTAG_LEN);
             }
         }
-
-        // 交易数据应答确认
+        // 找到正在交易的枪号
         for (i = 1; i <= ocpp_chargePoint->numberOfConnector; i++)
         {
-            if (ocpp_chargePoint->transaction_obj[i]->isTransaction)
-                if (strcmp(ocpp_chargePoint->transaction_obj[i]->lastUniqueId, uniqueId_str) == 0)
-                {
-                    ocpp_chargePoint->transaction_obj[i]->isRecStopTransaction_Conf = true;
-                    memcpy(&ocpp_chargePoint->transaction_obj[i]->stopTransaction, &stopTransaction, sizeof(ocpp_package_StopTransaction_conf_t));
-                }
+            if (strcmp(ocpp_chargePoint->transaction_obj[i]->lastUniqueId, uniqueId_str) == 0 && ocpp_chargePoint->transaction_obj[i]->isTransaction)
+            {
+                ocpp_chargePoint->transaction_obj[i]->isRecStopTransaction_Conf = true;
+                memcpy(&ocpp_chargePoint->transaction_obj[i]->stopTransaction, &stopTransaction, sizeof(ocpp_package_StopTransaction_conf_t));
+                break;
+            }
         }
 
         if (i > ocpp_chargePoint->numberOfConnector)
             return;
 
-        // 离线数据接收确认
-        // if (ocpp_chargePoint->offlineDate_obj.isHaveDate)
-        // {
-        //     if (strcmp(ocpp_chargePoint->offlineDate_obj.lastUniqueId, uniqueId_str) == 0)
-        //     {
-        //         ocpp_chargePoint->offlineDate_obj.isResponse = true;
-        //         ocpp_offline_deleteOfflineData(uniqueId_str);
-        //     }
-        // }
-
-        // Insert or upDate
         ocpp_localAuthorization_cache_record_t *cache_record = (ocpp_localAuthorization_cache_record_t *)calloc(1, sizeof(ocpp_localAuthorization_cache_record_t));
 
-        strncpy(cache_record->IdTag, ocpp_chargePoint->transaction_obj[i]->stopIdTag, OCPP_AUTHORIZATION_IDTAG_LEN);
+        memcpy(cache_record->IdTag, ocpp_chargePoint->transaction_obj[i]->stopIdTag, OCPP_AUTHORIZATION_IDTAG_LEN);
         cache_record->status = stopTransaction.idTagInfo.AuthorizationStatus;
 
         if (stopTransaction.idTagInfo.expiryDateIsUse)
         {
-            strncpy(cache_record->expiryDate, stopTransaction.idTagInfo.expiryDate, 32);
+            memcpy(cache_record->expiryDate, stopTransaction.idTagInfo.expiryDate, 32);
         }
 
         if (stopTransaction.idTagInfo.parentIdTagIsUse)
         {
-            strncpy(cache_record->parentIdTag, stopTransaction.idTagInfo.parentIdTag, OCPP_AUTHORIZATION_IDTAG_LEN);
+            memcpy(cache_record->parentIdTag, stopTransaction.idTagInfo.parentIdTag, OCPP_AUTHORIZATION_IDTAG_LEN);
         }
 
         ocpp_localAuthorization_Cache_write(cache_record);
@@ -4366,31 +3740,8 @@ static void ocpp_chargePoint_CallError_Handler(json_object *jobj, enum OCPP_PACK
     {
 
     case OCPP_PACKAGE_AUTHORIZE:
-    {
-        int i = 0;
-        // find the connector when transaction
-        for (i = 0; i < ocpp_chargePoint->numberOfConnector; i++)
-        {
-            char *lastUniqueId = ocpp_transaction_getLastUniqueId(i + 1);
 
-            if (lastUniqueId != NULL)
-            {
-                if (strcmp(lastUniqueId, uniqueId_str) == 0)
-                {
-                    free(lastUniqueId);
-                    break;
-                }
-                free(lastUniqueId);
-            }
-        }
-        if (i >= ocpp_chargePoint->numberOfConnector)
-            return;
-
-        ocpp_package_Authorize_conf_t authorize_conf;
-        authorize_conf.idTagInfo.AuthorizationStatus = OCPP_LOCAL_AUTHORIZATION_INVALID;
-        ocpp_transaction_setAuthorize_Conf(i + 1, authorize_conf);
-    }
-    break;
+        break;
 
     case OCPP_PACKAGE_BOOT_NOTIFICATION:
 
@@ -4410,43 +3761,11 @@ static void ocpp_chargePoint_CallError_Handler(json_object *jobj, enum OCPP_PACK
         break;
 
     case OCPP_PACKAGE_METERVALUES:
-    {
-
-        // 离线数据接收确认
-        if (ocpp_chargePoint->offlineDate_obj.isHaveDate)
-        {
-            if (strcmp(ocpp_chargePoint->offlineDate_obj.lastUniqueId, uniqueId_str) == 0)
-            {
-                ocpp_chargePoint->offlineDate_obj.isRetransmission = true;
-            }
-        }
-    }
-    break;
+        break;
 
     case OCPP_PACKAGE_STARTTRANSACTION:
     case OCPP_PACKAGE_STOPTRANSACTION:
-    {
-        int i = 0;
-        for (i = 1; i <= ocpp_chargePoint->numberOfConnector; i++)
-        {
-            if (ocpp_chargePoint->transaction_obj[i]->isTransaction)
-                if (strcmp(ocpp_chargePoint->transaction_obj[i]->lastUniqueId, uniqueId_str) == 0)
-                {
-                    ocpp_chargePoint->transaction_obj[i]->isRetransmission = true;
-                    break;
-                }
-        }
-
-        // 离线数据接收错误
-        if (ocpp_chargePoint->offlineDate_obj.isHaveDate)
-        {
-            if (strcmp(ocpp_chargePoint->offlineDate_obj.lastUniqueId, uniqueId_str) == 0)
-            {
-                ocpp_chargePoint->offlineDate_obj.isRetransmission = true;
-            }
-        }
-    }
-    break;
+        break;
 
     case OCPP_PACKAGE_STATUS_NOTIFICATION:
         break;
@@ -4466,42 +3785,13 @@ static void ocpp_chargePoint_Recv_timeout_Handler(enum OCPP_PACKAGE lastAction, 
     switch (lastAction)
     {
     case OCPP_PACKAGE_AUTHORIZE:
-    {
-        int i = 0;
-        for (i = 0; i < ocpp_chargePoint->numberOfConnector; i++)
-        {
-            if (ocpp_chargePoint->authorizetion[i]->isWaitAuthoriza)
-                if (strcmp(lastUniqueId, ocpp_chargePoint->authorizetion[i]->lastUniqueId) == 0)
-                    ocpp_chargePoint->setAuthorizeResult(i, false);
-        }
-    }
-    break;
-
+        break;
     case OCPP_PACKAGE_METERVALUES:
+        break;
     case OCPP_PACKAGE_STARTTRANSACTION:
+        break;
     case OCPP_PACKAGE_STOPTRANSACTION:
-    {
-        int connector = 1;
-        for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
-        {
-            if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
-                if (strcmp(ocpp_chargePoint->transaction_obj[connector]->lastUniqueId, lastUniqueId) == 0)
-                {
-                    ocpp_chargePoint->transaction_obj[connector]->isRetransmission = true;
-                    break;
-                }
-        }
-
-        // 离线数据接收超时
-        if (ocpp_chargePoint->offlineDate_obj.isHaveDate)
-        {
-            if (strcmp(ocpp_chargePoint->offlineDate_obj.lastUniqueId, lastUniqueId) == 0)
-            {
-                ocpp_chargePoint->offlineDate_obj.isRetransmission = true;
-            }
-        }
-    }
-    break;
+        break;
 
     default:
         break;
@@ -4563,7 +3853,29 @@ static void ocpp_chargePoint_Recv_Handler()
         }
     }
 }
+// 函数用于检查日期和时间是否已经过期
+int isExpired(const char *expiryDate)
+{
+    // 获取当前时间
+    time_t currentTime;
+    time(&currentTime);
 
+    // 将日期和时间字符串转换为tm结构体
+    struct tm expiryTime;
+    memset(&expiryTime, 0, sizeof(struct tm));
+
+    if (strptime(expiryDate, "%Y-%m-%dT%H:%M:%S", &expiryTime) == NULL)
+    {
+        // 日期时间解析失败
+        return 1; // 假设未过期
+    }
+
+    // 将tm结构体转换为时间戳
+    time_t expiryTimestamp = mktime(&expiryTime);
+
+    // 比较当前时间和过期时间
+    return (expiryTimestamp <= currentTime);
+}
 /**
  * @description:
  * @param
@@ -4583,7 +3895,6 @@ void *ocpp_chargePoint_client(void *arg)
 
     pthread_detach(tid_boot);
     int connector = 0;
-    bool isAllowTransaction = false;
     while (1)
     {
 
@@ -4594,9 +3905,6 @@ void *ocpp_chargePoint_client(void *arg)
         {
             ocpp_chargePoint->RegistrationStatus = OCPP_PACKAGE_REGISTRATION_STATUS_MAX;
         }
-        if (ocpp_chargePoint->RegistrationStatus == OCPP_PACKAGE_REGISTRATION_STATUS_ACCEPTED)
-        {
-        }
         // 版本二
         for (connector = 0; connector < ocpp_chargePoint->numberOfConnector; connector++)
         {
@@ -4604,64 +3912,27 @@ void *ocpp_chargePoint_client(void *arg)
             {
                 if (!ocpp_chargePoint->transaction_obj[connector + 1]->isTransaction && ocpp_chargePoint->transaction_obj[connector + 1]->isStart)
                 {
-                    if (ocpp_chargePoint->connector[0]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_AVAILABLE)
+                    bool isAllowTransaction = false;
+                    if (ocpp_chargePoint->connector[connector + 1]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_PREPARING)
                     {
-                        if (ocpp_chargePoint->connector[connector + 1]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_RESERVED)
+                        isAllowTransaction = true;
+                    }
+                    if (isAllowTransaction)
+                    {
+                        pthread_t tid_transaction;
+                        if (pthread_create(&tid_transaction, NULL, ocpp_chargePoint_Transaction_thread, (void *)connector + 1) == -1)
                         {
-                            isAllowTransaction = true;
+                            printf("create transaction thread fail\n");
                         }
-                        else if (ocpp_chargePoint->connector[connector + 1]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_PREPARING)
-                        {
-                            isAllowTransaction = true;
-                        }
-                        if (isAllowTransaction)
-                        {
-                            pthread_t tid_transaction;
-                            if (pthread_create(&tid_transaction, NULL, ocpp_chargePoint_Transaction_thread, (void *)connector + 1) == -1)
-                            {
-                                printf("create transaction thread fail\n");
-                            }
-                            pthread_detach(tid_transaction);
-                        }
+                        pthread_detach(tid_transaction);
                     }
                 }
             }
 
         } // for_end
 
-        // 每5s判断预约时间是否过期
-        reserveTime_ms += 100 * 1000;
-        if (reserveTime_ms >= 5 * 1000 * 1000)
-        {
-            reserveTime_ms = 0;
-
-            for (connector = 0; connector <= ocpp_chargePoint->numberOfConnector; connector++)
-            {
-                if (ocpp_chargePoint->isReservation[connector])
-                {
-                    //					printf("connector = %d\n", connector);
-                    //					printf("years = %d\n", ocpp_chargePoint->reserveConnector[connector]->expiryDate.tm_year + 1900);
-                    //					printf("month = %d\n", ocpp_chargePoint->reserveConnector[connector]->expiryDate.tm_mon);
-                    //					printf("day = %d\n", ocpp_chargePoint->reserveConnector[connector]->expiryDate.tm_mday);
-                    //					printf("hour = %d\n", ocpp_chargePoint->reserveConnector[connector]->expiryDate.tm_hour);
-                    //					printf("min = %d\n", ocpp_chargePoint->reserveConnector[connector]->expiryDate.tm_min);
-                    //					printf("sec = %d\n", ocpp_chargePoint->reserveConnector[connector]->expiryDate.tm_sec);
-
-                    time_t now;
-                    time(&now);
-                    time_t reserveTime = mktime(&ocpp_chargePoint->reserveConnector[connector]->expiryDate);
-                    if (difftime(reserveTime, now) <= 0.0)
-                    {
-                        printf("connector = %d  remove reserve = %d\n", connector, ocpp_chargePoint->reserveConnector[connector]->reservationId);
-                        ocpp_chargePoint->isReservation[connector] = false;
-                        ocpp_reserve_removeReservation(ocpp_chargePoint->reserveConnector[connector]->reservationId);
-                    }
-                }
-            }
-        }
-
-        usleep(100 * 1000);
-    }
+        usleep(1000 * 1000);
+    } // for_end
 }
 
 /**
@@ -4766,8 +4037,6 @@ static void ocpp_chargePoint_defaultFunc()
         ocpp_chargePoint->getCurrentExport = ocpp_chargePoint_getDefaultMeterValues;
 
     //
-    // if(ocpp_chargePoint->userPushStartButton == NULL)
-    //     ocpp_chargePoint->userPushStartButton = ocpp_chargePoint_pushDefault;
 
     // if(ocpp_chargePoint->userPushStopButton == NULL)
     //     ocpp_chargePoint->userPushStopButton = ocpp_chargePoint_pushDefault;
@@ -4819,13 +4088,12 @@ void ocpp_chargePoint_init(ocpp_chargePoint_t *pile)
     ocpp_chargePoint->setConnectorErrInfo = setConnectorErrInfo;
 
     int rc;
-
     // 打开数据库文件或创建并打开
     rc = sqlite3_open_v2(OCPP_DATABASE_FILE_NAME, &(ocpp_chargePoint->ocpp_db), SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, NULL);
     if (rc != SQLITE_OK)
     {
         printf("无法创建或打开OCPP数据库\n");
-        return -1; // 失败处理
+        return; // 失败处理
     }
 
     // 初始化OCPP配置
@@ -4834,25 +4102,16 @@ void ocpp_chargePoint_init(ocpp_chargePoint_t *pile)
 
     // 初始化OCPP本地认证
     ocpp_localAuthorization_init(ocpp_chargePoint->ocpp_db);
-
+    ocpp_ChargingProfile_init(ocpp_chargePoint->ocpp_db);
     // 初始化 offline
     ocpp_order_init(ocpp_chargePoint->ocpp_db);
 
     // 初始化 Reserve
-    ocpp_reserve_init(ocpp_chargePoint->ocpp_db);
     ocpp_chargePoint->reserveConnector = (ocpp_reserve_t **)calloc(ocpp_chargePoint->numberOfConnector + 1, sizeof(ocpp_reserve_t *));
-    ocpp_chargePoint->isReservation = (char *)calloc(ocpp_chargePoint->numberOfConnector + 1, sizeof(char));
     int i = 0;
     for (i = 0; i <= ocpp_chargePoint->numberOfConnector; i++)
     {
         ocpp_chargePoint->reserveConnector[i] = (ocpp_reserve_t *)calloc(1, sizeof(ocpp_reserve_t));
-    }
-
-    // read Reserve
-    for (i = 0; i <= ocpp_chargePoint->numberOfConnector; i++)
-    {
-        if (ocpp_reserve_readReservation(i, ocpp_chargePoint->reserveConnector[i]) == 0)
-            ocpp_chargePoint->isReservation[i] = true;
     }
 
     // 初始化认证状态
@@ -4884,7 +4143,8 @@ void ocpp_chargePoint_init(ocpp_chargePoint_t *pile)
     //////////////////////////////////////
     ocpp_connect_init(&(ocpp_chargePoint->connect));
     ocpp_list_init(&(ocpp_chargePoint->connect));
-
+    ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_IDLE;
+    ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_IDLE;
     // 创建客户端线程
     pthread_t tid_client;
     if (pthread_create(&tid_client, NULL, ocpp_chargePoint_client, NULL) != 0)

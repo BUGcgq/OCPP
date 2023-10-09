@@ -9,17 +9,16 @@ extern "C" {
 #include "ocpp_package.h"
 #include <pthread.h>
 
-#define START_STOP_TRANSACTION_MAX_ROWS 100
-#define METER_VALUES_MAX_ROWS 1000
+// #define MAX_TRANSACTION_RECORDS 1000 // 定义最大记录数限制
+// #define MAX_DELETE_RECORDS 100         // 定义一次删除的最大记录数
 
+// int ocpp_StartTransaction_insert(int TransactionID, int ConnectorID, const char *IdTag, int MeterStart, const char *StartTimes, const char *StartUniqueID, int IsCompleted, const char *Reason);
 
-int ocpp_StartTransaction_insert(int transactionId, int connectorId, const char *idTag, int meterStart, int reservationId, const char *timestamp, int isCompleted, const char *uniqueId, int Offline);
-int ocpp_MeterValues_insert(int transactionId, int connectorId, const char *meterValue, int isSent, const char *uniqueId);
-int ocpp_StopTransaction_insert(int transactionId, const char *idTag, const char *timestamp, int meterStop, const char *reason, const char *transactionData, const char *uniqueId);
-int updateTransactionIDsByUniqueID(const char *uniqueId, int newTransactionId);
-int updateTransactionIDs(int oldTransactionId, int newTransactionId);
-int updateStartTransactionIsCompletedByUniqueID(const char *uniqueId, int isCompleted);
-int updateStartTransactionIsSentByUniqueId(const char *uniqueId, int isSent);
+// int ocpp_StopTransaction_update(int TransactionID, int MeterStop, const char *StopTimes, const char *StopUniqueID, const char *Reason, const char *MeterValue);
+
+// int ocpp_Transaction_updateTransactionID(const char *StartUniqueID, int NewTransactionID);
+
+// int ocpp_Transaction_updateIsCompleted(const char *StopUniqueID, int NewIsCompleted);
 void ocpp_order_init(sqlite3 *ocpp_db);
 
 #ifdef __cplusplus

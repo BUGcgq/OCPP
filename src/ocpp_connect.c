@@ -7,6 +7,7 @@
 #include "ocpp_connect.h"
 
 int current_reconnect_attempt = 0;
+int WebSocketPingInterval;
 #define OCPP_CONNECT_SEND_BUFFER 2048 // 发送缓存区大小
 // 每个使用这个协议的新连接在建立连接时都会分配这么多内存，在断开连接时会释放这么多内存。指向此按连接分配的指针被传递到user参数中的回调中
 typedef struct
@@ -129,12 +130,6 @@ static int send_ping(struct lws *wsi)
 static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len)
 {
 	static int pingCounter = 0;
-	int WebSocketPingInterval;
-	ocpp_ConfigurationKey_getValue("WebSocketPingInterval",&WebSocketPingInterval);
-	if (WebSocketPingInterval < 5)
-	{
-		WebSocketPingInterval = 5;
-	}
 	switch (reason)
 	{
 	case LWS_CALLBACK_PROTOCOL_INIT:
@@ -245,20 +240,22 @@ static void ocpp_connect_initialize_websocket_context(struct lws_context_creatio
 {
 	memset(info, 0, sizeof(struct lws_context_creation_info));
 	memset(protocol, 0, sizeof(struct lws_protocols));
-
+	ocpp_ConfigurationKey_getValue("WebSocketPingInterval",&WebSocketPingInterval);
+	if (WebSocketPingInterval < 5)
+	{
+		WebSocketPingInterval = 5;
+	}
 	protocol->name = connect->protocolName;
 	protocol->callback = &ocpp_connect_service_callback;
 	protocol->per_session_data_size = 0;
 	protocol->rx_buffer_size = 0;
 	protocol->id = 0;
+	
 	info->port = CONTEXT_PORT_NO_LISTEN; // 创建客户端,不监听端口
 	info->iface = NULL;
 	info->protocols = protocol;
 	info->gid = -1;
 	info->uid = -1;
-	// info->keepalive_ping_interval = 5;     // 设置 ping 间隔为 5 秒
-	//  info->keepalive_timeout = 10; // 设置 ping 超时时间为 10 秒
-
 	info->options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;					   // 初始化SSL库
 	info->client_ssl_private_key_password = NULL;							   // 私钥
 	info->client_ssl_cert_filepath = NULL;									   // 客户端的证书

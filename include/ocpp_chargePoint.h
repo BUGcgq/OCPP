@@ -15,7 +15,6 @@ extern "C" {
 
 #include "ocpp_connect.h"
 #include "ocpp_package.h"
-#include "ocpp_reserve.h"
 
 
 
@@ -72,17 +71,14 @@ typedef struct{
 
 
 
-//离线数据对象
+
 typedef struct{
-	bool isCreate;                            //是否已经创建线程
-	char lastUniqueId[40];
-	bool isHaveDate;
-	bool isResponse;
-	bool isRetransmission;
-	
-}ocpp_chargePoint_offlineDate_t;
 
-
+    int reservationId;
+    char expiryDate[32];
+    char idTag[OCPP_AUTHORIZATION_IDTAG_LEN];
+    char parentIdTag[OCPP_AUTHORIZATION_IDTAG_LEN];
+}ocpp_reserve_t;
 
 typedef struct{
     sqlite3 *ocpp_db;
@@ -105,17 +101,12 @@ typedef struct{
 
     //充电枪预约相关
     ocpp_reserve_t **reserveConnector;
-    char *  isReservation;                   //bool 型二维数组
 
     //充电枪认证相关
     ocpp_chargePoint_Authoriza_t ** authorizetion;
 
     //充电枪交易对象
     ocpp_chargePoint_transaction_t ** transaction_obj;
-
-	//离线对象
-	ocpp_chargePoint_offlineDate_t offlineDate_obj;
-
 
     ocpp_connect_t connect;
 
@@ -134,8 +125,8 @@ typedef struct{
 
     //Authoriza Reasult
     void (*setAuthorizeResult)(int connector, int result);
-
-
+    //
+    void (*getReservationStatus)(int connector, int status);
     //get MeterValues
     float (*getVoltage)(int connector);                          //电压
     float (*getTemperature)(int connector);                      //温度
@@ -163,16 +154,12 @@ typedef struct{
     float (*getCurrentMeterValues)(int connector);               //获取当前电表值
 
     void (*startCharging)(int connector);                        //启动充电
-    // void (*stopCharging)(int connector);                         //停止充电
-    
-    // bool (*userPushStartButton)(char * idTag, int connector);    //用户点击启动充电
-    // bool (*userPushStopButton)(char * idTag, int connector);     //用户点击停止充电
 
     void (*userPushStartButton)(char * idTag, int connector);                                             //用户点击启动充电
     void (*userPushStopButton)(char * idTag, int connector, enum OCPP_PACKAGE_STOP_REASON_E  reason);     //用户点击停止充电    
 
     void (*remoteStopCharging)(int connector);                                                            //远程停止充电
-
+    void (*setChargingProfile)(int connector, int type, double limit);
 }ocpp_chargePoint_t;
 
 

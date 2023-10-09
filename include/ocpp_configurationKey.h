@@ -168,7 +168,7 @@ int ocpp_ConfigurationKey_getAcc(const char *key);
 int ocpp_ConfigurationKey_getType(const char *key);
 int ocpp_ConfigurationKey_Modify(const char *key, const char *value, int isUse);
 int ocpp_ConfigurationKey_init(sqlite3 *ocpp_db);
-void ocpp_ConfigurationKey_deinit(void);
+int ocpp_ConfigurationKey_deinit(void);
 
 
 #ifdef __cplusplus

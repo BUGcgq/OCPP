@@ -1,19 +1,3 @@
-/*
- * @Author: LIYAOHAN liyaohan@increase.com
- * @Date: 2023-04-20 10:38:29
- * @LastEditors: LIYAOHAN 1791002655@qq.com
- * @LastEditTime: 2023-05-06 17:35:13
- * @FilePath: \OCPP\ocpp_package.h
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
-/*
- * @Author: LIYAOHAN 1791002655@qq.com
- * @Date: 2023-04-01 13:26:13
- * @LastEditors: LIYAOHAN liyaohan@increase.com
- * @LastEditTime: 2023-04-10 14:34:07
- * @FilePath: /OCPP/ocpp_dataEncapsulation.h
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
 #ifndef __OCPP_PACKAGE__H__
 #define __OCPP_PACKAGE__H__
 
@@ -1213,6 +1197,7 @@ typedef struct{
 	char info[50];
 
 	enum OCPP_PACKAGE_CHARGEPOINT_STATUS_E status;
+	int  idTagStatus;
 
 	char timestampIsUse:1;
 	char timestamp[32];
@@ -1446,40 +1431,42 @@ typedef struct {
 
 
 
-
+void ocpp_package_prepare_Status_Req(char *UniqueId, int status);
+//发送MeterValues，StartTransaction，StopTransaction_Simpleness
 int ocpp_chargePoint_sendMeterValues(int connector, int transactionId);
 int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *lastUniqueId);
 int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *idTag, int transactionId, const char *lastUniqueId, enum OCPP_PACKAGE_STOP_REASON_E reason);
+//发送Heartbeat，BootNotification，StatusNotification
 int ocpp_chargePoint_sendHeartbeat_Req();
 int ocpp_chargePoint_sendBootNotification_req();
 int ocpp_chargePoint_sendStatusNotification_Req(int connector);
-int ocpp_chargePoint_sendFinishing_Req(int connector);
+//身份认证
 int ocpp_chargePoint_sendAuthorize_req(const char *const idTag, char *lastUniqueId);
-int ocpp_chargePoint_sendDiagnosticsStatusNotification_Req();
+int ocpp_chargePoint_sendDiagnosticsStatusNotification_Req(int status);
+//远程升级
 int ocpp_chargePoint_sendFirmwareStatusNotification_Req(int status);
+//获取配置
 void ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_package_GetConfiguration_conf_t *GetConfiguration);
-void ocpp_chargePoint_manageSendLocalList_Req(const char *uniqueId, ocpp_package_SendLocalList_req_t *sendLocalList_req);
+void ocpp_chargePoint_manageChangeConfigurationRequest(const char *uniqueId, ocpp_package_ChangeConfiguration_req_t changeConfiguration_req);
+//远程启动
 void ocpp_chargePoint_manageRemoteStartTransaction_Req(const char *uniqueId, ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req);
+//获取本地列表版本号，保存本地列表名单
 void ocpp_chargePoint_GetLocalListVersion_Req(const char *uniqueId);
-void ocpp_package_prepare_Status_Req(char *UniqueId, int status);
+void ocpp_chargePoint_manageSendLocalList_Req(const char *uniqueId, ocpp_package_SendLocalList_req_t *sendLocalList_req);
+//获取状态
 void ocpp_chargePoint_manageTriggerMessageRequest(const char *uniqueId, ocpp_package_TriggerMessage_req_t triggerMessage_req);
-
-char *ocpp_package_prepare_DataTransfer_Request(const char * UniqueId,ocpp_package_DataTransfer_req_t * DataTransfer);
-char *ocpp_package_prepare_CancelReservation_Response(const char *UniqueId, ocpp_package_CancelReservation_conf_t * CancelReservation);
-char *ocpp_package_prepare_ChangeAvailability_Response(const char *UniqueId, ocpp_package_ChangeAvailability_conf_t * ChangeAvailability);
-char *ocpp_package_prepare_ChangeConfiguration_Response(const char *UniqueId, ocpp_package_ChangeConfiguration_conf_t * ChangeConfiguration);
-char *ocpp_package_prepare_ClearCache_Response(const char *UniqueId, ocpp_package_ClearCache_conf_t * ClearCache);
-char *ocpp_package_prepare_ClearChargingProfile_Response(const char *UniqueId, ocpp_package_ClearChargingProfile_conf_t * ClearChargingProfile);
-char *ocpp_package_prepare_DataTransfer_Response(const char * UniqueId,ocpp_package_DataTransfer_conf_t * DataTransfer);
-char *ocpp_package_prepare_GetCompositeSchedule_Response(const char *UniqueId, ocpp_package_GetCompositeSchedule_conf_t * GetCompositeSchedule);
-char *ocpp_package_prepare_GetDiagnostics_Response(const char *UniqueId, ocpp_package_GetDiagnostics_conf_t * GetDiagnostics);
-char *ocpp_package_prepare_RemoteStopTransaction_Response(const char *UniqueId, ocpp_package_RemoteStopTransaction_conf_t * ReserveNow);
-char *ocpp_package_prepare_ReserveNow_Response(const char *UniqueId, ocpp_package_ReserveNow_conf_t * ReserveNow);
-char *ocpp_package_prepare_Reset_Response(const char *UniqueId, ocpp_package_Reset_conf_t * Reset);
-char *ocpp_package_prepare_SetChargingProfile_Response(const char *UniqueId, ocpp_package_SetChargingProfile_conf_t * SetChargingProfile);
-char *ocpp_package_prepare_UnlockConnector_Response(const char *UniqueId, ocpp_package_UnlockConnector_conf_t * UnlockConnector);
-
-
+//预约和取消预约
+void ocpp_chargePoint_manageReserveNowRequest(const char *uniqueId, ocpp_package_ReserveNow_req_t reserveNow_req);
+void ocpp_chargePoint_manageCancelReservationRequest(const char *uniqueId, ocpp_package_CancelReservation_req_t cancelReservation_req);
+//清除缓存
+void ocpp_chargePoint_manageClearCacheRequest(const char *uniqueId, ocpp_package_ClearCache_req_t clearCache_req);
+//更改可用性
+void ocpp_chargePoint_manageChangeAvailabilityRequest(const char *uniqueId, ocpp_package_ChangeAvailability_req_t changeAvailability_req);
+//
+void ocpp_chargePoint_manageUnlockConnectorRequest(const char *uniqueId, ocpp_package_UnlockConnector_req_t unlockConnector_req);
+//
+void ocpp_chargePoint_manageResetRequest(const char *uniqueId, ocpp_package_Reset_req_t reset_req);
+//
 
 char * ocpp_package_prepare_CallError(const char *UniqueId, ocpp_package_CallError_t * callError);
 

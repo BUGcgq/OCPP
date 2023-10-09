@@ -10,12 +10,7 @@ extern "C" {
 #include "ocpp_package.h"
 
 
-
-
-
-
-enum OCPP_PACKAGE_DIAGNOSTICS_STATUS_E  ocpp_diagnostics_getDiagnosticsStatus();
-void ocpp_diagnostics_init(void);
+void *ocpp_chargePoint_diagnostics_upload_thread(void *arg);
 
 
 #ifdef __cplusplus
