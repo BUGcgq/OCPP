@@ -204,39 +204,33 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
         int minDifference = INT_MAX; // 初始化为最大整数
         int selectedPeriod = -1;     // 初始化为无效值
         int i;
-        int type;
-        for (i = 0; i < chargingProfiles.chargingSchedule.numPeriods; i++)
+        int type = 1;
+        if (chargingProfiles.chargingSchedule.chargingSchedulePeriods != NULL)
         {
-            int startPeriod = chargingProfiles.chargingSchedule.chargingSchedulePeriods[i].startPeriod;
-            int difference = secondsSinceMidnight - startPeriod;
-            printf("secondsSinceMidnight = %d\n", secondsSinceMidnight);
-            printf("startPeriod = %d\n", startPeriod);
-            printf("difference = %d\n", difference);
-            printf("chargingProfilePurpose = %s\n", chargingProfiles.chargingProfilePurpose);
-            if (difference >= 0 && difference < minDifference)
+            for (i = 0; i < chargingProfiles.chargingSchedule.numPeriods; i++)
             {
-                minDifference = difference;
-                selectedPeriod = i;
+                int startPeriod = chargingProfiles.chargingSchedule.chargingSchedulePeriods[i].startPeriod;
+                int difference = secondsSinceMidnight - startPeriod;
+                if (difference >= 0 && difference < minDifference)
+                {
+                    minDifference = difference;
+                    selectedPeriod = i;
+                }
             }
-        }
-        if (selectedPeriod >= 0)
-        {
-            if (strcmp(chargingProfiles.chargingSchedule.chargingRateUnit, "W") == 0)
+            if (selectedPeriod >= 0)
             {
-                type = 1;
+                if (strcmp(chargingProfiles.chargingSchedule.chargingRateUnit, "W") != 0)
+                {
+                    type = 2;
+                }
+                ocpp_chargePoint->setChargingProfile(connector, type, chargingProfiles.chargingSchedule.chargingSchedulePeriods[selectedPeriod].limit);
+                ocpp_ChargingProfile_deleteByPurpose("TxProfile");
             }
             else
             {
-                type = 2;
+                ocpp_chargePoint->setChargingProfile(0, 0, 0);
             }
-            ocpp_chargePoint->setChargingProfile(connector, type, chargingProfiles.chargingSchedule.chargingSchedulePeriods[selectedPeriod].limit);
-        }
-        if (strcmp(chargingProfiles.chargingProfilePurpose, "TxProfile") == 0)
-        {
-            ocpp_ChargingProfile_delete(connector, chargingProfiles.stackLevel, chargingProfiles.chargingProfileId);
-        }
-        if (chargingProfiles.chargingSchedule.chargingSchedulePeriods)
-        {
+
             free(chargingProfiles.chargingSchedule.chargingSchedulePeriods);
         }
     }
@@ -292,7 +286,7 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
                 char *timestamp = ocpp_AuxiliaryTool_GetCurrentTime();
                 if (timestamp)
                 {
-                    //ocpp_StartTransaction_insert(item->transactionId, connector, item->startIdTag, (int)ocpp_chargePoint->getCurrentMeterValues(connector), timestamp, item->lastUniqueId, 0, "PowerLoss");
+                    // ocpp_StartTransaction_insert(item->transactionId, connector, item->startIdTag, (int)ocpp_chargePoint->getCurrentMeterValues(connector), timestamp, item->lastUniqueId, 0, "PowerLoss");
                     free(timestamp);
                 }
                 isStartTransactionInsert = true;
@@ -655,7 +649,7 @@ void ocpp_chargePoint_manageGetCompositeScheduleRequest(const char *uniqueId, Ch
     {
         struct json_object *period_obj = json_object_new_object();
         json_object_object_add(period_obj, "startPeriod", json_object_new_int(chargingProfile.chargingSchedule.chargingSchedulePeriods[i].startPeriod));
-        json_object_object_add(period_obj, "limit", json_object_new_int(chargingProfile.chargingSchedule.chargingSchedulePeriods[i].limit));
+        json_object_object_add(period_obj, "limit", json_object_new_double(chargingProfile.chargingSchedule.chargingSchedulePeriods[i].limit));
         json_object_object_add(period_obj, "numberPhases", json_object_new_int(chargingProfile.chargingSchedule.chargingSchedulePeriods[i].numberPhases));
         json_object_array_add(chargingSchedulePeriod_array, period_obj);
     }
@@ -1404,23 +1398,25 @@ static bool ocpp_chargePoint_checkRemoteStartTransaction_Callpackage(const char 
     memset(&callError, 0, sizeof(callError));
     callError.errorDescriptionIsUse = 1;
 
-    if (idTag_obj == NULL)
+    if (connectorId_obj == NULL)
     {
-        isError = true;
-        callError.errorCode = OCPP_PACKAGE_CALLERROR_ERRORCODE_PROTOCOL_ERROR;
-        snprintf(callError.errorDescription, 1024, "%s", "IdTag is NULL");
+        snprintf(callError.errorDescription, 1024, "connectorId SHELL be not NULL");
     }
-    else if (connectorId_obj != NULL)
+    else if (idTag_obj == NULL)
+    {
+        snprintf(callError.errorDescription, 1024, "idTag SHELL be not NULL");
+    }
+    else
     {
         int connectorId = json_object_get_int(connectorId_obj);
         if (connectorId < 0 || connectorId > ocpp_chargePoint->numberOfConnector)
         {
-            isError = true;
-            snprintf(callError.errorDescription, 1024, "connector SHELL be >= 0 and <= %d", ocpp_chargePoint->numberOfConnector);
+            snprintf(callError.errorDescription, 1024, "connectorId SHELL be > 0 and <= %d", ocpp_chargePoint->numberOfConnector);
         }
-    }
-    else if (chargingProfile_obj != NULL)
-    {
+        else
+        {
+            isError = false;
+        }
     }
 
     if (isError)
@@ -1761,85 +1757,17 @@ static bool ocpp_chargePoint_checkSetChargingProfile_Callpackage(const char *uni
     {
         snprintf(callError.errorDescription, 1024, "csChargingProfiles SHELL be not NULL");
     }
+
     else
     {
-
-        json_object *chargingProfileId_obj = json_object_object_get(csChargingProfiles_obj, "chargingProfileId");
-        json_object *transactionId_obj = json_object_object_get(csChargingProfiles_obj, "transactionId");
-        json_object *stackLevel_obj = json_object_object_get(csChargingProfiles_obj, "stackLevel");
-        json_object *chargingProfilePurpose_obj = json_object_object_get(csChargingProfiles_obj, "chargingProfilePurpose");
-        json_object *chargingProfileKind_obj = json_object_object_get(csChargingProfiles_obj, "chargingProfileKind");
-        json_object *recurrencyKind_obj = json_object_object_get(csChargingProfiles_obj, "recurrencyKind");
-        json_object *validFrom_obj = json_object_object_get(csChargingProfiles_obj, "validFrom");
-        json_object *validTo_obj = json_object_object_get(csChargingProfiles_obj, "validTo");
-        json_object *chargingSchedule_obj = json_object_object_get(csChargingProfiles_obj, "chargingSchedule");
-
-        if (chargingProfileId_obj == NULL)
+        int connectorId = json_object_get_int(connectorId_obj);
+        if (connectorId < 0 || connectorId > ocpp_chargePoint->numberOfConnector)
         {
-            snprintf(callError.errorDescription, 1024, "chargingProfileId SHELL be not NULL");
-        }
-        else if (stackLevel_obj == NULL)
-        {
-            snprintf(callError.errorDescription, 1024, "stackLevel SHELL be not NULL");
-        }
-        else if (chargingProfilePurpose_obj == NULL)
-        {
-            snprintf(callError.errorDescription, 1024, "chargingProfilePurpose SHELL be not NULL");
-        }
-        else if (chargingProfileKind_obj == NULL)
-        {
-            snprintf(callError.errorDescription, 1024, "chargingProfileKind SHELL be not NULL");
-        }
-        else if (chargingSchedule_obj == NULL)
-        {
-            snprintf(callError.errorDescription, 1024, "chargingSchedule SHELL be not NULL");
+            snprintf(callError.errorDescription, 1024, "connectorId SHELL be > 0 and <= %d", ocpp_chargePoint->numberOfConnector);
         }
         else
         {
-            json_object *duration_obj = json_object_object_get(chargingSchedule_obj, "duration");
-            json_object *startSchedule_obj = json_object_object_get(chargingSchedule_obj, "startSchedule");
-            json_object *chargingRateUnit_obj = json_object_object_get(chargingSchedule_obj, "chargingRateUnit");
-            json_object *chargingSchedulePeriod_obj = json_object_object_get(chargingSchedule_obj, "chargingSchedulePeriod");
-            json_object *minChargingRate_obj = json_object_object_get(chargingSchedule_obj, "minChargingRate");
-
-            if (chargingRateUnit_obj == NULL)
-            {
-                snprintf(callError.errorDescription, 1024, "chargingRateUnit SHELL be not NULL");
-            }
-            else if (chargingSchedulePeriod_obj == NULL)
-            {
-                snprintf(callError.errorDescription, 1024, "chargingSchedulePeriod SHELL be not NULL");
-            }
-            else
-            {
-                int num = json_object_array_length(chargingSchedulePeriod_obj);
-                int i = 0;
-                for (i = 0; i < num; i++)
-                {
-                    json_object *chargingSchedulePeriod_index_obj = json_object_array_get_idx(chargingSchedulePeriod_obj, i);
-                    json_object *startPeriod_obj = json_object_object_get(chargingSchedulePeriod_index_obj, "startPeriod");
-                    json_object *limit_obj = json_object_object_get(chargingSchedulePeriod_index_obj, "limit");
-                    json_object *numberPhases_obj = json_object_object_get(chargingSchedulePeriod_index_obj, "numberPhases");
-
-                    if (startPeriod_obj == NULL)
-                    {
-                        snprintf(callError.errorDescription, 1024, "startPeriod SHELL be not NULL");
-                        break;
-                    }
-                    else if (limit_obj == NULL)
-                    {
-                        snprintf(callError.errorDescription, 1024, "limit SHELL be not NULL");
-                        break;
-                    }
-                }
-
-                if (i >= num)
-                {
-                    callError.errorCode = OCPP_PACKAGE_CALLERROR_ERRORCODE_TYPE_CONSTRAINT_VIOLATION;
-
-                    isError = false;
-                }
-            }
+            isError = false;
         }
     }
 
@@ -2908,14 +2836,9 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
                 if (chargingProfilePurpose_str != NULL)
                 {
                     strncpy(chargingProfiles.chargingProfilePurpose, chargingProfilePurpose_str, sizeof(chargingProfiles.chargingProfilePurpose) - 1);
-                    // 更严格的条件检查
                     if (strcmp(chargingProfiles.chargingProfilePurpose, "TxProfile") == 0)
                     {
                         chargingProfiles.transactionId = 1;
-                    }
-                    else
-                    {
-                        chargingProfiles.transactionId = 0;
                     }
                 }
                 // 解析 chargingSchedule 对象
@@ -2975,11 +2898,10 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
                                     chargingProfiles.chargingSchedule.chargingSchedulePeriods[i].numberPhases = json_object_get_int(numberPhases_obj);
                                 }
                             }
+                            ocpp_ChargingProfile_insert(remoteStartTransaction_req.connectorId, &chargingProfiles);
                             free(chargingProfiles.chargingSchedule.chargingSchedulePeriods);
                         }
                     }
-
-                    ocpp_ChargingProfile_insert(remoteStartTransaction_req.connectorId, &chargingProfiles);
                 }
             }
             printf("接受到远程启动充电\n");
