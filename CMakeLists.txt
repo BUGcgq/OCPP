@@ -14,8 +14,7 @@ set(LIB_NAME "OCPP")
 aux_source_directory(src SOURCE_FILES)
 
 # 外部库根目录
-set(EXT_LIB_DIR "/opt")
-
+set(EXT_LIB_DIR "${CMAKE_SOURCE_DIR}/lib")
 
 # 包含头文件目录
 include_directories(
