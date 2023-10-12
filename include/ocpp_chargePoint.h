@@ -80,6 +80,18 @@ typedef struct{
     char parentIdTag[OCPP_AUTHORIZATION_IDTAG_LEN];
 }ocpp_reserve_t;
 
+//离线数据对象
+typedef struct{
+	bool IsCreate;                            //是否已经创建线程
+    char Status[16];
+	char StartUniqueID[40];
+    bool StartResponse;
+    char StopUniqueID[40];
+    bool StopResponse;
+	bool IsRetransmission;
+	int  TransactionID;
+}ocpp_chargePoint_offlineDate_t;
+
 typedef struct{
     sqlite3 *ocpp_db;
 
@@ -109,6 +121,8 @@ typedef struct{
     ocpp_chargePoint_transaction_t ** transaction_obj;
 
     ocpp_connect_t connect;
+	//离线对象
+	// ocpp_chargePoint_offlineDate_t offlineDate_obj;
 
 
     //have return true,not have return false

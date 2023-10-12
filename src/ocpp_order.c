@@ -7,202 +7,436 @@
 
 static sqlite3 *ocpp_OL;
 
-// // 函数用于创建StartTransaction表格
-// static int ocpp_Order_create_table(sqlite3 *db)
-// {
-// 	if (db == NULL)
-// 	{
-// 		return -1;
-// 	}
+// 函数用于创建StartTransaction表格
+static int ocpp_Order_create_table(sqlite3 *db)
+{
+	if (db == NULL)
+	{
+		return -1;
+	}
 
-// 	char *errMsg = 0;
+	char *errMsg = 0;
 
-// 	const char *createTableSQL =
-// 		"CREATE TABLE Transactions ("
-// 		"ID INTEGER PRIMARY KEY AUTOINCREMENT,"
-// 		"TransactionID INT NOT NULL,"
-// 		"ConnectorID INT NOT NULL,"
-// 		"IdTag NOT TEXT,"
-// 		"MeterStart INT,"
-// 		"MeterStop INT,"
-// 		"StartTimes TEXT,"
-// 		"StopTimes TEXT,"
-// 		"StartUniqueID NOT TEXT,"
-// 		"StopUniqueID NOT TEXT,"
-// 		"Reason TEXT,"
-// 		"MeterValue TEXT,"
-// 		"IsCompleted INT NOT NULL"
-// 		");";
+	// 创建Transactions表格
+	const char *createTransactionsTableSQL =
+		"CREATE TABLE Transactions ("
+		"ID INTEGER PRIMARY KEY AUTOINCREMENT,"
+		"TransactionID INT NOT NULL UNIQUE,"
+		"ConnectorID INT NOT NULL,"
+		"IdTag TEXT NOT NULL,"
+		"MeterStart INT,"
+		"MeterStop INT,"
+		"StartTimes TEXT,"
+		"StopTimes TEXT,"
+		"StartUniqueID TEXT,"
+		"StopUniqueID TEXT,"
+		"Status INT,"
+		"Reason INT,"
+		"ReservationId INT,"
+		"Completed INT"
+		");";
 
-// 	int result = sqlite3_exec(db, createTableSQL, 0, 0, &errMsg);
+	int result = sqlite3_exec(db, createTransactionsTableSQL, 0, 0, &errMsg);
 
-// 	if (result != SQLITE_OK)
-// 	{
-// 		fprintf(stderr, "SQL error: %s\n", errMsg);
-// 		sqlite3_free(errMsg);
-// 		return result;
-// 	}
-// 	else
-// 	{
-// 		printf("Transactions table created successfully.\n");
-// 		return SQLITE_OK;
-// 	}
-// }
+	if (result != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(db));
+		return result;
+	}
 
-// int ocpp_StartTransaction_insert(int TransactionID, int ConnectorID, const char *IdTag, int MeterStart, const char *StartTimes, const char *StartUniqueID, int IsCompleted, const char *Reason)
-// {
-// 	if (ocpp_OL == NULL)
-// 	{
-// 		return -1; // 检查数据库连接是否有效
-// 	}
+	// 创建MeterValues表格
+	const char *createMeterValuesTableSQL =
+		"CREATE TABLE MeterValues ("
+		"ID INTEGER PRIMARY KEY AUTOINCREMENT,"
+		"TransactionID INT,"
+		"meterValue TEXT"
+		");";
 
-// 	int recordCount = 0;
-// 	sqlite3_stmt *countStmt;
+	result = sqlite3_exec(db, createMeterValuesTableSQL, 0, 0, &errMsg);
 
-// 	// 查询当前记录数
-// 	const char *countSql = "SELECT COUNT(*) FROM Transactions";
-// 	if (sqlite3_prepare_v2(ocpp_OL, countSql, -1, &countStmt, NULL) == SQLITE_OK)
-// 	{
-// 		if (sqlite3_step(countStmt) == SQLITE_ROW)
-// 		{
-// 			recordCount = sqlite3_column_int(countStmt, 0);
-// 		}
+	if (result != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(db));
+		return result;
+	}
 
-// 		sqlite3_finalize(countStmt);
-// 	}
+	return 0;
+}
+// Status 0 订单在离线充电，1 订单在线充电，2 已经结束充电
+int ocpp_Transaction_insert(int TransactionID, int ConnectorID, const char *IdTag, int MeterStart, const char *StartTimes, const char *StartUniqueID, int Status, int Reason, int ReservationId)
+{
+	if (ocpp_OL == NULL)
+	{
+		fprintf(stderr, "Database connection is not available.\n");
+		return -1; // 数据库指针为空，操作失败
+	}
 
-// 	// 如果记录数超过限制，先删除最旧的记录
-// 	if (recordCount >= MAX_TRANSACTION_RECORDS)
-// 	{
-// 		int deleteCount = recordCount - MAX_TRANSACTION_RECORDS + 1; // 要删除的记录数
-// 		char deleteSql[128];
-// 		snprintf(deleteSql, sizeof(deleteSql), "DELETE FROM Transactions WHERE ID IN (SELECT ID FROM Transactions ORDER BY ID LIMIT %d);", deleteCount);
+	char *errMsg = 0;
 
-// 		sqlite3_exec(ocpp_OL, deleteSql, 0, 0, 0);
-// 	}
+	// 插入数据
+	const char *insertSQL = "INSERT INTO Transactions (TransactionID, ConnectorID, IdTag, MeterStart, StartTimes, StartUniqueID, Status, Reason, ReservationId, Completed) "
+							"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0);";
 
-// 	// 插入新记录
-// 	char sql[512];
-// 	sqlite3_stmt *stmt;
+	sqlite3_stmt *stmt = NULL;
 
-// 	snprintf(sql, sizeof(sql), "INSERT INTO Transactions (TransactionID, ConnectorID, IdTag, MeterStart, StartTimes, StartUniqueID, IsCompleted, Reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-// 	if (sqlite3_prepare_v2(ocpp_OL, sql, -1, &stmt, NULL) == SQLITE_OK)
-// 	{
-// 		sqlite3_bind_int(stmt, 1, TransactionID);
-// 		sqlite3_bind_int(stmt, 2, ConnectorID);
-// 		sqlite3_bind_text(stmt, 3, IdTag, -1, SQLITE_STATIC);
-// 		sqlite3_bind_int(stmt, 4, MeterStart);
-// 		sqlite3_bind_text(stmt, 5, StartTimes, -1, SQLITE_STATIC);
-// 		sqlite3_bind_text(stmt, 6, StartUniqueID, -1, SQLITE_STATIC);
-// 		sqlite3_bind_int(stmt, 7, IsCompleted);
-// 		sqlite3_bind_text(stmt, 8, Reason, -1, SQLITE_STATIC);
+	if (sqlite3_prepare_v2(ocpp_OL, insertSQL, -1, &stmt, NULL) != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		return -1; // SQL 准备失败，操作失败
+	}
 
-// 		if (sqlite3_step(stmt) == SQLITE_DONE)
-// 		{
-// 			sqlite3_finalize(stmt);
-// 			return 0; // 插入成功
-// 		}
+	sqlite3_bind_int(stmt, 1, TransactionID);
+	sqlite3_bind_int(stmt, 2, ConnectorID);
+	sqlite3_bind_text(stmt, 3, IdTag, -1, SQLITE_STATIC);
+	sqlite3_bind_int(stmt, 4, MeterStart);
+	sqlite3_bind_text(stmt, 5, StartTimes, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 6, StartUniqueID, -1, SQLITE_STATIC);
+	sqlite3_bind_int(stmt, 7, Status);
+	sqlite3_bind_int(stmt, 8, Reason);
+	sqlite3_bind_int(stmt, 9, ReservationId);
 
-// 		sqlite3_finalize(stmt);
-// 	}
+	if (sqlite3_step(stmt) != SQLITE_DONE)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		sqlite3_finalize(stmt);
+		return -1; // 插入操作失败
+	}
 
-// 	return -1; // 操作失败
-// }
+	sqlite3_finalize(stmt);
 
-// int ocpp_StopTransaction_update(int TransactionID, int MeterStop, const char *StopTimes, const char *StopUniqueID, const char *Reason, const char *MeterValue)
-// {
-// 	if (ocpp_OL == NULL)
-// 	{
-// 		return -1;
-// 	}
-// 	char sql[512];
-// 	sqlite3_stmt *stmt;
+	// 检查数据行数，如果超过 DATA_LIMIT，删除最老的 DELETE_LIMIT 行
+	const char *countSQL = "SELECT COUNT(*) FROM Transactions;";
+	int rowCount = 0;
 
-// 	snprintf(sql, sizeof(sql), "UPDATE Transactions SET MeterStop = ?, StopTimes = ?, StopUniqueID = ?, Reason = ?, MeterValue = ? WHERE TransactionID = ?");
-// 	if (sqlite3_prepare_v2(ocpp_OL, sql, -1, &stmt, NULL) == SQLITE_OK)
-// 	{
-// 		sqlite3_bind_int(stmt, 1, MeterStop);
-// 		sqlite3_bind_text(stmt, 2, StopTimes, -1, SQLITE_STATIC);
-// 		sqlite3_bind_text(stmt, 3, StopUniqueID, -1, SQLITE_STATIC);
-// 		sqlite3_bind_text(stmt, 4, Reason, -1, SQLITE_STATIC);
-// 		sqlite3_bind_text(stmt, 5, MeterValue, -1, SQLITE_STATIC);
-// 		sqlite3_bind_int(stmt, 6, TransactionID);
+	sqlite3_stmt *countStmt = NULL;
 
-// 		if (sqlite3_step(stmt) == SQLITE_DONE)
-// 		{
-// 			sqlite3_finalize(stmt);
-// 			return 0; // 更新成功
-// 		}
+	if (sqlite3_prepare_v2(ocpp_OL, countSQL, -1, &countStmt, NULL) != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		return -1; // SQL 准备失败，操作失败
+	}
 
-// 		sqlite3_finalize(stmt);
-// 	}
+	if (sqlite3_step(countStmt) == SQLITE_ROW)
+	{
+		rowCount = sqlite3_column_int(countStmt, 0);
+	}
 
-// 	return -1; // 更新失败
-// }
+	sqlite3_finalize(countStmt);
 
-// int ocpp_Transaction_updateTransactionID(const char *StartUniqueID, int NewTransactionID)
-// {
-// 	if (ocpp_OL == NULL)
-// 	{
-// 		return -1; // 检查数据库连接是否有效
-// 	}
+	if (rowCount > DATA_LIMIT)
+	{
+		int deleteCount = rowCount - DATA_LIMIT;
 
-// 	char sql[256];
-// 	sqlite3_stmt *stmt;
+		// 删除最老的 DELETE_LIMIT 行
+		const char *deleteSQL = "DELETE FROM Transactions WHERE ID IN (SELECT ID FROM Transactions ORDER BY ID LIMIT ?);";
+		sqlite3_stmt *deleteStmt = NULL;
 
-// 	// 尝试执行更新操作
-// 	snprintf(sql, sizeof(sql), "UPDATE Transactions SET TransactionID = ? WHERE StartUniqueID = ?");
-// 	if (sqlite3_prepare_v2(ocpp_OL, sql, -1, &stmt, NULL) == SQLITE_OK)
-// 	{
-// 		sqlite3_bind_int(stmt, 1, NewTransactionID);
-// 		sqlite3_bind_text(stmt, 2, StartUniqueID, -1, SQLITE_STATIC);
+		if (sqlite3_prepare_v2(ocpp_OL, deleteSQL, -1, &deleteStmt, NULL) != SQLITE_OK)
+		{
+			fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+			return -1; // SQL 准备失败，操作失败
+		}
 
-// 		if (sqlite3_step(stmt) == SQLITE_DONE)
-// 		{
-// 			sqlite3_finalize(stmt);
-// 			return 0; // 更新成功
-// 		}
+		sqlite3_bind_int(deleteStmt, 1, deleteCount);
 
-// 		sqlite3_finalize(stmt);
-// 	}
+		if (sqlite3_step(deleteStmt) != SQLITE_DONE)
+		{
+			fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+			sqlite3_finalize(deleteStmt);
+			return -1; // 删除操作失败
+		}
 
-// 	return -1; // 操作失败
-// }
+		sqlite3_finalize(deleteStmt);
+	}
 
-// int ocpp_Transaction_updateIsCompleted(const char *StopUniqueID, int NewIsCompleted)
-// {
-// 	if (ocpp_OL == NULL)
-// 	{
-// 		return -1; // 检查数据库连接是否有效
-// 	}
+	return 0; // 成功
+}
 
-// 	char sql[256];
-// 	sqlite3_stmt *stmt;
+int ocpp_Transaction_update(int TransactionID, int MeterStop, const char *StopTimes, const char *StopUniqueID, int Status, int Reason)
+{
+	if (ocpp_OL == NULL)
+	{
+		fprintf(stderr, "Database connection is not available.\n");
+		return -1; // 数据库指针为空，操作失败
+	}
 
-// 	// 尝试执行更新操作
-// 	snprintf(sql, sizeof(sql), "UPDATE Transactions SET IsCompleted = ? WHERE StopUniqueID = ?");
-// 	if (sqlite3_prepare_v2(ocpp_OL, sql, -1, &stmt, NULL) == SQLITE_OK)
-// 	{
-// 		sqlite3_bind_int(stmt, 1, NewIsCompleted);
-// 		sqlite3_bind_text(stmt, 2, StopUniqueID, -1, SQLITE_STATIC);
+	char *errMsg = 0;
 
-// 		if (sqlite3_step(stmt) == SQLITE_DONE)
-// 		{
-// 			sqlite3_finalize(stmt);
-// 			return 0; // 更新成功
-// 		}
+	const char *updateSQL = "UPDATE Transactions "
+							"SET MeterStop = ?, StopTimes = ?, StopUniqueID = ?, Status = ?, Reason = ?, Completed = ? "
+							"WHERE TransactionID = ?;";
 
-// 		sqlite3_finalize(stmt);
-// 	}
+	sqlite3_stmt *stmt = NULL;
 
-// 	return -1; // 操作失败
-// }
+	if (sqlite3_prepare_v2(ocpp_OL, updateSQL, -1, &stmt, NULL) != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		return -1; // SQL 准备失败，操作失败
+	}
+
+	sqlite3_bind_int(stmt, 1, MeterStop);
+	sqlite3_bind_text(stmt, 2, StopTimes, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 3, StopUniqueID, -1, SQLITE_STATIC);
+	sqlite3_bind_int(stmt, 4, Status);
+	sqlite3_bind_int(stmt, 5, Reason);
+	sqlite3_bind_int(stmt, 6, 0);
+	sqlite3_bind_int(stmt, 7, TransactionID);
+
+	if (sqlite3_step(stmt) != SQLITE_DONE)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		sqlite3_finalize(stmt);
+		return -1; // 更新操作失败
+	}
+
+	sqlite3_finalize(stmt);
+
+	return 0; // 成功
+}
+
+int ocpp_MeterValues_insert(int TransactionID, const char *meterValue)
+{
+	if (ocpp_OL == NULL)
+	{
+		fprintf(stderr, "Database connection is not available.\n");
+		return -1; // 数据库指针为空，操作失败
+	}
+
+	char *errMsg = 0;
+
+	const char *insertSQL = "INSERT INTO MeterValues (TransactionID, meterValue) VALUES (?, ?);";
+
+	sqlite3_stmt *stmt = NULL;
+
+	if (sqlite3_prepare_v2(ocpp_OL, insertSQL, -1, &stmt, NULL) != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		return -1; // SQL 准备失败，操作失败
+	}
+
+	sqlite3_bind_int(stmt, 1, TransactionID);
+	sqlite3_bind_text(stmt, 2, meterValue, -1, SQLITE_STATIC);
+
+	if (sqlite3_step(stmt) != SQLITE_DONE)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		sqlite3_finalize(stmt);
+		return -1; // 插入操作失败
+	}
+
+	sqlite3_finalize(stmt);
+
+	return 0; // 成功
+}
+
+int ocpp_UpdateTransactionIDByUniqueID(const char *UniqueID, int NewTransactionID)
+{
+	if (ocpp_OL == NULL)
+	{
+		fprintf(stderr, "Database connection is not available.\n");
+		return -1; // 数据库指针为空，操作失败
+	}
+
+	char *errMsg = 0;
+
+	// 开始数据库事务
+	if (sqlite3_exec(ocpp_OL, "BEGIN TRANSACTION;", 0, 0, 0) != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		return -1; // 开始事务失败
+	}
+
+	int rowsUpdated = 0;
+
+	// 尝试在MeterValues表中更新TransactionID
+	const char *updateMeterValuesSQL = "UPDATE MeterValues SET TransactionID = ? WHERE TransactionID IN (SELECT TransactionID FROM Transactions WHERE StartUniqueID = ? OR StopUniqueID = ?);";
+
+	sqlite3_stmt *stmtMeterValues = NULL;
+
+	if (sqlite3_prepare_v2(ocpp_OL, updateMeterValuesSQL, -1, &stmtMeterValues, NULL) != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		sqlite3_exec(ocpp_OL, "ROLLBACK;", 0, 0, 0); // 回滚事务
+		return -1;									 // SQL 准备失败，操作失败
+	}
+
+	sqlite3_bind_int(stmtMeterValues, 1, NewTransactionID);
+	sqlite3_bind_text(stmtMeterValues, 2, UniqueID, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmtMeterValues, 3, UniqueID, -1, SQLITE_STATIC);
+
+	if (sqlite3_step(stmtMeterValues) == SQLITE_DONE)
+	{
+		rowsUpdated = sqlite3_changes(ocpp_OL);
+	}
+
+	sqlite3_finalize(stmtMeterValues);
+
+	// 如果在MeterValues表中没有找到匹配的TransactionID，尝试在Transactions表中更新
+	if (rowsUpdated == 0)
+	{
+		const char *updateTransactionsSQL = "UPDATE Transactions SET TransactionID = ? WHERE StartUniqueID = ? OR StopUniqueID = ?;";
+
+		sqlite3_stmt *stmtTransactions = NULL;
+
+		if (sqlite3_prepare_v2(ocpp_OL, updateTransactionsSQL, -1, &stmtTransactions, NULL) != SQLITE_OK)
+		{
+			fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+			sqlite3_exec(ocpp_OL, "ROLLBACK;", 0, 0, 0); // 回滚事务
+			return -1;									 // SQL 准备失败，操作失败
+		}
+
+		sqlite3_bind_int(stmtTransactions, 1, NewTransactionID);
+		sqlite3_bind_text(stmtTransactions, 2, UniqueID, -1, SQLITE_STATIC);
+		sqlite3_bind_text(stmtTransactions, 3, UniqueID, -1, SQLITE_STATIC);
+
+		if (sqlite3_step(stmtTransactions) != SQLITE_DONE)
+		{
+			fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+			sqlite3_finalize(stmtTransactions);
+			sqlite3_exec(ocpp_OL, "ROLLBACK;", 0, 0, 0); // 回滚事务
+			return -1;									 // 更新操作失败
+		}
+
+		sqlite3_finalize(stmtTransactions);
+	}
+
+	// 提交数据库事务
+	if (sqlite3_exec(ocpp_OL, "COMMIT;", 0, 0, 0) != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		sqlite3_exec(ocpp_OL, "ROLLBACK;", 0, 0, 0); // 回滚事务
+		return -1;									 // 提交事务失败
+	}
+
+	return 0; // 成功
+}
+
+int ocpp_UpdateStatusByUniqueID(const char *UniqueID, int NewStatus)
+{
+	if (ocpp_OL == NULL)
+	{
+		fprintf(stderr, "Database connection is not available.\n");
+		return -1; // 数据库指针为空，操作失败
+	}
+
+	char *errMsg = 0;
+
+	// 更新Status字段
+	const char *updateStatusSQL = "UPDATE Transactions SET Status = ? WHERE StartUniqueID = ? OR StopUniqueID = ?;";
+
+	sqlite3_stmt *stmt = NULL;
+
+	if (sqlite3_prepare_v2(ocpp_OL, updateStatusSQL, -1, &stmt, NULL) != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		return -1; // SQL 准备失败，操作失败
+	}
+
+	sqlite3_bind_int(stmt, 1, NewStatus);
+	sqlite3_bind_text(stmt, 2, UniqueID, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 3, UniqueID, -1, SQLITE_STATIC);
+
+	if (sqlite3_step(stmt) != SQLITE_DONE)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		sqlite3_finalize(stmt);
+		return -1; // 更新操作失败
+	}
+
+	sqlite3_finalize(stmt);
+
+	return 0; // 成功
+}
+int ocpp_UpdateCompletedByUniqueID(const char *UniqueID, int NewCompleted)
+{
+	if (ocpp_OL == NULL)
+	{
+		fprintf(stderr, "Database connection is not available.\n");
+		return -1; // 数据库指针为空，操作失败
+	}
+
+	char *errMsg = 0;
+
+	// 更新Completed字段
+	const char *updateCompletedSQL = "UPDATE Transactions SET Completed = ? WHERE StartUniqueID = ? OR StopUniqueID = ?;";
+
+	sqlite3_stmt *stmt = NULL;
+
+	if (sqlite3_prepare_v2(ocpp_OL, updateCompletedSQL, -1, &stmt, NULL) != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		return -1; // SQL 准备失败，操作失败
+	}
+
+	sqlite3_bind_int(stmt, 1, NewCompleted);
+	sqlite3_bind_text(stmt, 2, UniqueID, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 3, UniqueID, -1, SQLITE_STATIC);
+
+	if (sqlite3_step(stmt) != SQLITE_DONE)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		sqlite3_finalize(stmt);
+		return -1; // 更新操作失败
+	}
+
+	sqlite3_finalize(stmt);
+
+	return 0; // 成功
+}
+
+/**
+ * @description: 读取事务数据库中，优先读取Reason = 5，然后读取Completed != 1并且Status不能是0，和1，然后按ID从小到大来读取，每次只读取一个，成功返回0，失败返回-1
+ * @param
+ * @return:
+ * */
+int ocpp_ReadSingleIncompleteTransaction(TransactionRecord *transaction)
+{
+	if (ocpp_OL == NULL)
+	{
+		fprintf(stderr, "Database connection is not available.\n");
+		return -1; // 数据库指针为空，操作失败
+	}
+
+	const char *selectSQL = "SELECT * FROM Transactions WHERE (Reason = 5 OR (Completed != 1 AND Status != 0 AND Status != 1)) ORDER BY Reason = 5 DESC, ID ASC LIMIT 1;";
+	sqlite3_stmt *stmt = NULL;
+
+	if (sqlite3_prepare_v2(ocpp_OL, selectSQL, -1, &stmt, NULL) != SQLITE_OK)
+	{
+		fprintf(stderr, "SQL error: %s\n", sqlite3_errmsg(ocpp_OL));
+		return -1; // SQL preparation failed
+	}
+
+	int result = -1;
+
+	if (sqlite3_step(stmt) == SQLITE_ROW)
+	{
+		transaction->ID = sqlite3_column_int(stmt, 0);
+		transaction->TransactionID = sqlite3_column_int(stmt, 1);
+		transaction->ConnectorID = sqlite3_column_int(stmt, 2);
+		memcpy(transaction->idTag, (const char *)sqlite3_column_text(stmt, 3), sizeof(transaction->idTag));
+		transaction->MeterStart = sqlite3_column_int(stmt, 4);
+		transaction->MeterStop = sqlite3_column_int(stmt, 5);
+		memcpy(transaction->StartTimes, (const char *)sqlite3_column_text(stmt, 6), sizeof(transaction->StartTimes));
+		memcpy(transaction->StopTimes, (const char *)sqlite3_column_text(stmt, 7), sizeof(transaction->StopTimes));
+		memcpy(transaction->StartUniqueID, (const char *)sqlite3_column_text(stmt, 8), sizeof(transaction->StartUniqueID));
+		memcpy(transaction->StopUniqueID, (const char *)sqlite3_column_text(stmt, 9), sizeof(transaction->StopUniqueID));
+		transaction->Status = sqlite3_column_int(stmt, 10);
+		transaction->Reason = sqlite3_column_int(stmt, 11);
+		transaction->ReservationId = sqlite3_column_int(stmt, 12);
+		transaction->Completed = sqlite3_column_int(stmt, 13);
+		result = 0; 
+	}
+
+	sqlite3_finalize(stmt);
+
+	return result; 
+}
 
 void ocpp_order_init(sqlite3 *ocpp_db)
 {
 	ocpp_OL = ocpp_db;
-	// if (ocpp_Order_create_table(ocpp_OL) == -1)
-	// {
-	// 	printf("create offline table fail\n");
-	// }
+	if (ocpp_Order_create_table(ocpp_OL) == -1)
+	{
+		printf("create order table fail\n");
+	}
 }

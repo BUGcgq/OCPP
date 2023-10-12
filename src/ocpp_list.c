@@ -285,6 +285,7 @@ void *sendMessageToServer(void *arg)
     char message[MESSAGE_CONTENT_LEN];
     int status;
     int action;
+    int Timeout = 0;
     time_t sendTime;
     bool messageSent = false; // 标志变量，追踪消息是否已发送
     while (1)
@@ -309,6 +310,12 @@ void *sendMessageToServer(void *arg)
                 {
                     // 只有当状态不是已回复时才更新为超时
                     status = 2; // 2 表示超时
+                    Timeout ++ ;
+                }
+                if (Timeout >= 3)
+                {
+                   Timeout = 0;
+                   connect->interrupted == true;
                 }
             }
 

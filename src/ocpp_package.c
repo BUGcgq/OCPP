@@ -914,7 +914,7 @@ int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *i
     json_object_array_add(root_object, payload_object);
     const char *json_string = json_object_to_json_string(root_object);
     enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_STOPTRANSACTION);
-    //ocpp_StopTransaction_update(transactionId,meterStop,timestamp,uniqueId,ocpp_package_stop_reason_text[reason],transactionDataStr);
+    ocpp_Transaction_update(transactionId,meterStop,timestamp,uniqueId,2,reason);
     json_object_put(root_object);
 
     free(uniqueId);
@@ -1307,17 +1307,13 @@ void ocpp_chargePoint_manageRemoteStartTransaction_Req(const char *uniqueId, ocp
 void ocpp_chargePoint_manageRemoteStopTransactionRequest(const char *uniqueId, ocpp_package_RemoteStopTransaction_req_t remoteStopTransaction_req)
 {
     struct json_object *root_object = json_object_new_array();
-    if (uniqueId == NULL || root_object)
+    if (uniqueId == NULL || root_object == NULL)
     {
         return;
     }
-    ocpp_package_RemoteStopTransaction_conf_t remoteStopTransaction_conf;
-    memset(&remoteStopTransaction_conf, 0, sizeof(remoteStopTransaction_conf));
-
-    remoteStopTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_REJECTED;
+    int status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_REJECTED;
 
     int connector = 0;
-
     for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
     {
         printf("isTransaction = %d\n", ocpp_chargePoint->transaction_obj[connector]->isTransaction);
@@ -1325,7 +1321,7 @@ void ocpp_chargePoint_manageRemoteStopTransactionRequest(const char *uniqueId, o
             if (ocpp_chargePoint->transaction_obj[connector]->transactionId == remoteStopTransaction_req.transactionId)
             {
                 ocpp_chargePoint->remoteStopCharging(connector);
-                remoteStopTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_ACCEPTED;
+                status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_ACCEPTED;
                 break;
             }
     }
@@ -1334,7 +1330,7 @@ void ocpp_chargePoint_manageRemoteStopTransactionRequest(const char *uniqueId, o
     json_object_array_add(root_object, json_object_new_string(uniqueId));
 
     struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_RemoteStartStopStatus_text[remoteStopTransaction_conf.status]));
+    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_RemoteStartStopStatus_text[status]));
 
     json_object_array_add(root_object, payload_object);
 

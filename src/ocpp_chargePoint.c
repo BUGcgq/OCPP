@@ -241,6 +241,7 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
     ocpp_chargePoint_sendStartTransaction(connector, item->startIdTag, item->reservationId, item->lastUniqueId);
     unsigned int RetriesInterval = ocpp_AuxiliaryTool_getSystemTime_ms();
     unsigned int MeterValInterval = ocpp_AuxiliaryTool_getSystemTime_ms();
+    int Status = 0;
     int state = 0;
     bool Startoffline = false;
     bool isStartTransactionInsert = false; // 在合适的作用域内定义标志变量
@@ -262,6 +263,7 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
                     if (item->startTransaction.idTagInfo.AuthorizationStatus == OCPP_LOCAL_AUTHORIZATION_ACCEPTED)
                     {
                         printf("允许充电\n");
+                        Status = 1;
                         ocpp_chargePoint->startCharging(connector);
                         state = 1;
                     }
@@ -286,7 +288,7 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
                 char *timestamp = ocpp_AuxiliaryTool_GetCurrentTime();
                 if (timestamp)
                 {
-                    // ocpp_StartTransaction_insert(item->transactionId, connector, item->startIdTag, (int)ocpp_chargePoint->getCurrentMeterValues(connector), timestamp, item->lastUniqueId, 0, "PowerLoss");
+                    ocpp_Transaction_insert(item->transactionId, connector, item->startIdTag, (int)ocpp_chargePoint->getCurrentMeterValues(connector), timestamp, item->lastUniqueId, Status, 5, 0);
                     free(timestamp);
                 }
                 isStartTransactionInsert = true;
@@ -473,6 +475,7 @@ static void *ocpp_chargePoint_boot(void *arg)
     bool minimumStatusDurationIsUse;
     unsigned int minimumStatusDuration = 1;
     int i;
+    TransactionRecord transaction;
     while (1)
     {
 
@@ -490,6 +493,14 @@ static void *ocpp_chargePoint_boot(void *arg)
                         oldStatus[i] = ocpp_chargePoint->connector[i]->status;
                         ocpp_chargePoint_sendStatusNotification_Req(i);
                     }
+
+                    if (ocpp_ReadSingleIncompleteTransaction(&transaction) == 0)
+                    {
+                        printf("有离线订单要上传\n");
+                        // ocpp_chargePoint->offlineDate_obj.IsCreate = 1;
+                    }
+                    // ocpp_chargePoint->offlineDate_obj.IsCreate = 0;
+                    printf("没有离线订单要上传\n");
                 }
                 if (ocpp_AuxiliaryTool_getDiffTime_ms(&BootNotificationTime) > 30 * 1000)
                 {
@@ -643,9 +654,9 @@ void ocpp_chargePoint_manageGetCompositeScheduleRequest(const char *uniqueId, Ch
 
     // 创建 "chargingSchedulePeriod" 数组
     struct json_object *chargingSchedulePeriod_array = json_object_new_array();
-
+    int i;
     // 添加 "chargingSchedulePeriod" 数组元素，按照你提供的顺序
-    for (int i = 0; i < chargingProfile.chargingSchedule.numPeriods; i++)
+    for (i = 0; i < chargingProfile.chargingSchedule.numPeriods; i++)
     {
         struct json_object *period_obj = json_object_new_object();
         json_object_object_add(period_obj, "startPeriod", json_object_new_int(chargingProfile.chargingSchedule.chargingSchedulePeriods[i].startPeriod));
@@ -2921,6 +2932,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         memset(&remoteStopTransaction_req, 0, sizeof(remoteStopTransaction_req));
 
         remoteStopTransaction_req.transactionId = json_object_get_int(transactionId_obj);
+
         ocpp_chargePoint_manageRemoteStopTransactionRequest(uniqueId_str, remoteStopTransaction_req);
     }
     break;
@@ -3495,7 +3507,14 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         memset(&startTransaction, 0, sizeof(startTransaction));
         // Extract data
         startTransaction.transactionId = json_object_get_int(transactionId_obj);
+        ocpp_UpdateTransactionIDByUniqueID(uniqueId_str, startTransaction.transactionId);
+        ocpp_UpdateStatusByUniqueID(uniqueId_str, 1);
         const char *status_str = json_object_get_string(status_obj);
+        // if (!strcmp(ocpp_chargePoint->offlineDate_obj.Status, "Accepted") && !strcmp(ocpp_chargePoint->offlineDate_obj.StartUniqueID, uniqueId_str))
+        // {
+        //     ocpp_chargePoint->offlineDate_obj.StartResponse = true;
+        //     ocpp_chargePoint->offlineDate_obj.TransactionID = startTransaction.transactionId;
+        // }
         int i;
         for (i = 0; i < OCPP_LOCAL_AUTHORIZATION_MAX; i++)
         {
@@ -3568,6 +3587,7 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         int i = 0;
         if (idTagInfo_obj != NULL)
         {
+            ocpp_UpdateCompletedByUniqueID(uniqueId_str, 1);
             stopTransaction.idTagInfoIsUse = 1;
             json_object *status_obj = json_object_object_get(idTagInfo_obj, "status");
             json_object *expiryDate_obj = json_object_object_get(idTagInfo_obj, "expiryDate");

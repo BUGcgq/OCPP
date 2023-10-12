@@ -1450,6 +1450,7 @@ void ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_p
 void ocpp_chargePoint_manageChangeConfigurationRequest(const char *uniqueId, ocpp_package_ChangeConfiguration_req_t changeConfiguration_req);
 //远程启动
 void ocpp_chargePoint_manageRemoteStartTransaction_Req(const char *uniqueId, ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req);
+void ocpp_chargePoint_manageRemoteStopTransactionRequest(const char *uniqueId, ocpp_package_RemoteStopTransaction_req_t remoteStopTransaction_req);
 //获取本地列表版本号，保存本地列表名单
 void ocpp_chargePoint_GetLocalListVersion_Req(const char *uniqueId);
 void ocpp_chargePoint_manageSendLocalList_Req(const char *uniqueId, ocpp_package_SendLocalList_req_t *sendLocalList_req);
