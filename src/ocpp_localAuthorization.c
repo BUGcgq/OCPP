@@ -27,9 +27,9 @@ static int ocpp_localAuthorization_Cache_create_table(sqlite3 *p_db)
 	const char *sql = "CREATE TABLE IF NOT EXISTS AuthorizationCache ("
 					  "NO INTEGER PRIMARY KEY AUTOINCREMENT,"
 					  "IdTag TEXT NOT NULL UNIQUE,"
-					  "Status TEXT NOT NULL,"
-					  "ExpiryDate TEXT,"
-					  "ParentIdTag TEXT"
+					  "status TEXT NOT NULL,"
+					  "expiryDate TEXT NOT NULL,"
+					  "parentIdTag TEXT"
 					  ");";
 
 	int rc = sqlite3_exec(p_db, sql, NULL, 0, &zErrMsg);
@@ -337,7 +337,7 @@ bool ocpp_localAuthorization_Cache_isValid(const char *idTag)
 			// 解析 expiryDate
 			struct tm expiryDate;
 			memset(&expiryDate, 0, sizeof(struct tm));
-			strptime(expiryDateStr, "%Y-%m-%dT%H:%M:%SZ", &expiryDate);
+			strptime(expiryDateStr, "%Y-%m-%dT%H:%M:%S", &expiryDate);
 
 			// 获取当前时间
 			time_t currentTime = time(NULL);
@@ -761,7 +761,7 @@ bool ocpp_localAuthorization_List_isValid(const char *idTag)
 			// 解析 expiryDate
 			struct tm expiryDate;
 			memset(&expiryDate, 0, sizeof(struct tm));
-			strptime(expiryDateStr, "%Y-%m-%dT%H:%M:%S.%fZ", &expiryDate);
+			strptime(expiryDateStr, "%Y-%m-%dT%H:%M:%S", &expiryDate);
 
 			// 获取当前时间
 			time_t currentTime = time(NULL);
@@ -794,4 +794,3 @@ void ocpp_localAuthorization_init(sqlite3 *ocpp_db)
 	if (ocpp_localAuthorization_List_create_table(ocpp_AL) == -1)
 		printf("create localAuthorization_List fail\n");
 }
-

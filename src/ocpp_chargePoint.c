@@ -299,8 +299,14 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
             }
             if (ocpp_AuxiliaryTool_getDiffTime_ms(&MeterValInterval) >= meterValueSampleInterval * 1000)
             {
-
-                ocpp_chargePoint_sendMeterValues(connector, item->transactionId);
+                if (!Startoffline)
+                {
+                   ocpp_chargePoint_sendMeterValues(connector, item->transactionId);
+                }
+                else
+                {
+                    printf("枪%d发送电表值\n",connector);
+                }
                 MeterValInterval = ocpp_AuxiliaryTool_getSystemTime_ms();
             }
             break;
@@ -4004,8 +4010,12 @@ static void ocpp_chargePoint_defaultFunc()
  * @param {ocpp_chargePoint_t} *ocpp_chargePoint
  * @return {*}
  */
-void ocpp_chargePoint_init(ocpp_chargePoint_t *pile)
+int ocpp_chargePoint_init(ocpp_chargePoint_t * pile)
 {
+    if(pile == NULL)
+    {
+        return -1;
+    }
     ocpp_chargePoint = pile;
 
     /////////////////-test_debug-////////////////////
@@ -4035,12 +4045,15 @@ void ocpp_chargePoint_init(ocpp_chargePoint_t *pile)
     if (rc != SQLITE_OK)
     {
         printf("无法创建或打开OCPP数据库\n");
-        return; // 失败处理
+        return -1;
     }
 
     // 初始化OCPP配置
     if (ocpp_ConfigurationKey_init(ocpp_chargePoint->ocpp_db) == -1)
+    {
         printf("ocpp ConfigurationKey init fail\n");
+        return -1;
+    }
 
     // 初始化OCPP本地认证
     ocpp_localAuthorization_init(ocpp_chargePoint->ocpp_db);
@@ -4092,8 +4105,10 @@ void ocpp_chargePoint_init(ocpp_chargePoint_t *pile)
     if (pthread_create(&tid_client, NULL, ocpp_chargePoint_client, NULL) != 0)
     {
         printf("cann't create client thread %s\n", strerror(errno));
+        return -1;
     }
     pthread_detach(tid_client);
 
     printf("initial end\n");
+    return 0;
 }

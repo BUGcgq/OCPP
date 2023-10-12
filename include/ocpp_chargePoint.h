@@ -122,7 +122,7 @@ typedef struct{
 
     ocpp_connect_t connect;
 	//离线对象
-	// ocpp_chargePoint_offlineDate_t offlineDate_obj;
+	ocpp_chargePoint_offlineDate_t offlineDate_obj;
 
 
     //have return true,not have return false
@@ -184,7 +184,7 @@ extern ocpp_chargePoint_t * ocpp_chargePoint;
 
 bool ocpp_chargePoint_getConnectStatus();
 void ocpp_chargePoint_setReConnect();
-void ocpp_chargePoint_init(ocpp_chargePoint_t * pile);
+int  ocpp_chargePoint_init(ocpp_chargePoint_t * pile);
 
 enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E ocpp_chargePoint_authorizationOfIdentifier(const char * const idTag, char * uniqueId);
 void ocpp_chargePoint_Authorization_IdTag(int connector, const char * idTag);
