@@ -17,9 +17,9 @@ static int ocpp_Order_create_table(sqlite3 *db)
 
 	char *errMsg = 0;
 
-	// 创建Transactions表格
+	// 创建Transactions表格，仅当不存在时创建
 	const char *createTransactionsTableSQL =
-		"CREATE TABLE Transactions ("
+		"CREATE TABLE IF NOT EXISTS Transactions ("
 		"ID INTEGER PRIMARY KEY AUTOINCREMENT,"
 		"TransactionID INT NOT NULL UNIQUE,"
 		"ConnectorID INT NOT NULL,"
@@ -44,9 +44,9 @@ static int ocpp_Order_create_table(sqlite3 *db)
 		return result;
 	}
 
-	// 创建MeterValues表格
+	// 创建MeterValues表格，仅当不存在时创建
 	const char *createMeterValuesTableSQL =
-		"CREATE TABLE MeterValues ("
+		"CREATE TABLE IF NOT EXISTS MeterValues ("
 		"ID INTEGER PRIMARY KEY AUTOINCREMENT,"
 		"TransactionID INT,"
 		"meterValue TEXT"
@@ -62,6 +62,7 @@ static int ocpp_Order_create_table(sqlite3 *db)
 
 	return 0;
 }
+
 // Status 0 订单在离线充电，1 订单在线充电，2 已经结束充电
 int ocpp_Transaction_insert(int TransactionID, int ConnectorID, const char *IdTag, int MeterStart, const char *StartTimes, const char *StartUniqueID, int Status, int Reason, int ReservationId)
 {
@@ -413,23 +414,50 @@ int ocpp_ReadSingleIncompleteTransaction(TransactionRecord *transaction)
 		transaction->ID = sqlite3_column_int(stmt, 0);
 		transaction->TransactionID = sqlite3_column_int(stmt, 1);
 		transaction->ConnectorID = sqlite3_column_int(stmt, 2);
-		memcpy(transaction->idTag, (const char *)sqlite3_column_text(stmt, 3), sizeof(transaction->idTag));
+
+		const char *idTag = (const char *)sqlite3_column_text(stmt, 3);
+		if (idTag)
+		{
+			memcpy(transaction->idTag, idTag, sizeof(transaction->idTag));
+		}
+
 		transaction->MeterStart = sqlite3_column_int(stmt, 4);
 		transaction->MeterStop = sqlite3_column_int(stmt, 5);
-		memcpy(transaction->StartTimes, (const char *)sqlite3_column_text(stmt, 6), sizeof(transaction->StartTimes));
-		memcpy(transaction->StopTimes, (const char *)sqlite3_column_text(stmt, 7), sizeof(transaction->StopTimes));
-		memcpy(transaction->StartUniqueID, (const char *)sqlite3_column_text(stmt, 8), sizeof(transaction->StartUniqueID));
-		memcpy(transaction->StopUniqueID, (const char *)sqlite3_column_text(stmt, 9), sizeof(transaction->StopUniqueID));
+
+		const char *startTimes = (const char *)sqlite3_column_text(stmt, 6);
+		if (startTimes)
+		{
+			memcpy(transaction->StartTimes, startTimes, sizeof(transaction->StartTimes));
+		}
+
+		const char *stopTimes = (const char *)sqlite3_column_text(stmt, 7);
+		if (stopTimes)
+		{
+			memcpy(transaction->StopTimes, stopTimes, sizeof(transaction->StopTimes));
+		}
+
+		const char *startUniqueID = (const char *)sqlite3_column_text(stmt, 8);
+		if (startUniqueID)
+		{
+			memcpy(transaction->StartUniqueID, startUniqueID, sizeof(transaction->StartUniqueID));
+		}
+
+		const char *stopUniqueID = (const char *)sqlite3_column_text(stmt, 9);
+		if (stopUniqueID)
+		{
+			memcpy(transaction->StopUniqueID, stopUniqueID, sizeof(transaction->StopUniqueID));
+		}
+
 		transaction->Status = sqlite3_column_int(stmt, 10);
 		transaction->Reason = sqlite3_column_int(stmt, 11);
 		transaction->ReservationId = sqlite3_column_int(stmt, 12);
 		transaction->Completed = sqlite3_column_int(stmt, 13);
-		result = 0; 
+		result = 0;
 	}
 
 	sqlite3_finalize(stmt);
 
-	return result; 
+	return result;
 }
 
 void ocpp_order_init(sqlite3 *ocpp_db)

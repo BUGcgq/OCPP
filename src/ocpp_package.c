@@ -1281,6 +1281,7 @@ void ocpp_chargePoint_manageRemoteStartTransaction_Req(const char *uniqueId, ocp
         memset(transaction, 0, sizeof(ocpp_chargePoint_transaction_t));
         strncpy(transaction->startIdTag, remoteStartTransaction_req.idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
         transaction->isStart = true;
+        transaction->startupType = 1;
         remoteStartTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_ACCEPTED;
     }
     else

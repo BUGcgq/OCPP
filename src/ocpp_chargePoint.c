@@ -47,6 +47,11 @@ void ocpp_chargePoint_setDefault(int connector)
 
     return;
 }
+void ocpp_chargePoint_Chargingint(int connector ,int type)
+{
+
+    return;
+}
 // 设置充电桩状态
 void ocpp_chargePoint_setChangerStatus(int connector, int status)
 {
@@ -264,7 +269,7 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
                     {
                         printf("允许充电\n");
                         Status = 1;
-                        ocpp_chargePoint->startCharging(connector);
+                        ocpp_chargePoint->startCharging(connector, item->startupType);
                         state = 1;
                     }
                     else
@@ -276,7 +281,7 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
             }
             else
             {
-                ocpp_chargePoint->startCharging(connector);
+                ocpp_chargePoint->startCharging(connector, item->startupType);
                 state = 1;
                 item->transactionId = ocpp_AuxiliaryTool_GenerateInt(); // 随机生成交易ID
                 Startoffline = true;
@@ -301,11 +306,11 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
             {
                 if (!Startoffline)
                 {
-                   ocpp_chargePoint_sendMeterValues(connector, item->transactionId);
+                    ocpp_chargePoint_sendMeterValues(connector, item->transactionId);
                 }
                 else
                 {
-                    printf("枪%d发送电表值\n",connector);
+                    printf("枪%d发送电表值\n", connector);
                 }
                 MeterValInterval = ocpp_AuxiliaryTool_getSystemTime_ms();
             }
@@ -506,7 +511,10 @@ static void *ocpp_chargePoint_boot(void *arg)
                         // ocpp_chargePoint->offlineDate_obj.IsCreate = 1;
                     }
                     // ocpp_chargePoint->offlineDate_obj.IsCreate = 0;
-                    printf("没有离线订单要上传\n");
+                    else
+                    {
+                        printf("没有离线订单要上传\n");
+                    }
                 }
                 if (ocpp_AuxiliaryTool_getDiffTime_ms(&BootNotificationTime) > 30 * 1000)
                 {
@@ -3494,7 +3502,6 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
 
         ocpp_localAuthorization_Cache_write(cache_record);
 
-        free(cache_record->expiryDate);
         free(cache_record);
     }
     break;
@@ -3575,7 +3582,6 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
 
         ocpp_localAuthorization_Cache_write(cache_record);
 
-        free(cache_record->expiryDate);
         free(cache_record);
     }
     break;
@@ -3654,7 +3660,6 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
 
         ocpp_localAuthorization_Cache_write(cache_record);
 
-        free(cache_record->expiryDate);
         free(cache_record);
     }
     break;
@@ -3996,7 +4001,7 @@ static void ocpp_chargePoint_defaultFunc()
         ocpp_chargePoint->userPushStopButton = ocpp_chargePoint_userPushStopButton;
 
     if (ocpp_chargePoint->startCharging == NULL)
-        ocpp_chargePoint->startCharging = ocpp_chargePoint_setDefault;
+        ocpp_chargePoint->startCharging = ocpp_chargePoint_Chargingint;
 
     // if(ocpp_chargePoint->stopCharging == NULL)
     //     ocpp_chargePoint->stopCharging = ocpp_chargePoint_setDefault;
@@ -4010,9 +4015,9 @@ static void ocpp_chargePoint_defaultFunc()
  * @param {ocpp_chargePoint_t} *ocpp_chargePoint
  * @return {*}
  */
-int ocpp_chargePoint_init(ocpp_chargePoint_t * pile)
+int ocpp_chargePoint_init(ocpp_chargePoint_t *pile)
 {
-    if(pile == NULL)
+    if (pile == NULL)
     {
         return -1;
     }

@@ -1,11 +1,3 @@
-/*
- * @Author: LIYAOHAN 1791002655@qq.com
- * @Date: 2023-04-15 10:00:41
- * @LastEditors: LIYAOHAN 1791002655@qq.com
- * @LastEditTime: 2023-05-09 09:38:00
- * @FilePath: /OCPP/ocpp_chargePoint.h
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
- */
 #ifndef __OCPP_CHARGE_POINT__H__
 #define __OCPP_CHARGE_POINT__H__
 
@@ -56,7 +48,7 @@ typedef struct{
     enum OCPP_PACKAGE_STOP_REASON_E  reason;
     bool isStop;
 
-
+	int startupType; //0 刷卡启动，1远程启动
     enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E authorizeResult;
 
     bool isRecStartTransaction_Conf;
@@ -167,7 +159,7 @@ typedef struct{
     
     float (*getCurrentMeterValues)(int connector);               //获取当前电表值
 
-    void (*startCharging)(int connector);                        //启动充电
+    void (*startCharging)(int connector ,int type);               //启动充电 ,type 0 刷卡启动，1远程启动
 
     void (*userPushStartButton)(char * idTag, int connector);                                             //用户点击启动充电
     void (*userPushStopButton)(char * idTag, int connector, enum OCPP_PACKAGE_STOP_REASON_E  reason);     //用户点击停止充电    
