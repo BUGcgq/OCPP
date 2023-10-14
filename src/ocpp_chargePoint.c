@@ -61,10 +61,17 @@ void ocpp_chargePoint_setChangerStatus(int connector, int status)
 void ocpp_chargePoint_userPushStartButton(char *idTag, int connector)
 {
     printf("=======用户点击启动充电=======\n");
+    if (connector < 0 || connector > ocpp_chargePoint->numberOfConnector)
+    {
+        return;
+    }
     ocpp_chargePoint_transaction_t *transaction = ocpp_chargePoint->transaction_obj[connector];
     memset(transaction, 0, sizeof(ocpp_chargePoint_transaction_t));
-    transaction->isStart = true;
-    strncpy(transaction->startIdTag, idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
+    if (!transaction->isStart && !transaction->isTransaction)
+    {
+        strncpy(transaction->startIdTag, idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
+        transaction->isStart = true;
+    }
 }
 
 // 用户点击停止充电
@@ -303,7 +310,6 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
                 char *timestamp = ocpp_AuxiliaryTool_GetCurrentTime();
                 if (timestamp)
                 {
-                    ocpp_Transaction_insert(item->transactionId, connector, item->startIdTag, (int)ocpp_chargePoint->getCurrentMeterValues(connector), timestamp, item->lastUniqueId, 0, 5, 0);
                     free(timestamp);
                 }
                 isStartTransactionInsert = true;
@@ -333,7 +339,6 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
                 int metervalue = (int)ocpp_chargePoint->getCurrentMeterValues(connector);
                 memcpy(item->lastUniqueId, StopuniqueId, sizeof(item->lastUniqueId));
                 ocpp_transaction_sendStopTransaction_Simpleness(connector, item->startIdTag, item->transactionId, StopuniqueId, metervalue, Stoptimestamp, item->reason);
-                ocpp_Transaction_update(item->transactionId, metervalue, Stoptimestamp, StopuniqueId, 1, item->reason);
                 free(StopuniqueId);
                 free(Stoptimestamp);
             }
@@ -478,107 +483,100 @@ void ocpp_chargePoint_Authorization_IdTag(int connector, const char *idTag)
     case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_SUCCEED:
         printf("授权成功\n");
         ocpp_chargePoint->setAuthorizeResult(connector, true);
-        if (!ocpp_chargePoint->transaction_obj[connector]->isStart && !ocpp_chargePoint->transaction_obj[connector]->isTransaction)
-        {
-            strncpy(ocpp_chargePoint->transaction_obj[connector]->startIdTag, idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
-            ocpp_chargePoint->transaction_obj[connector]->isStart = true;
-        }
         break;
     }
 }
 
-void *ocpp_chargePoint_offlineDate_Handler_thread(void *arg)
-{
-    ocpp_chargePoint->offlineDate_obj.IsCreate = true;
-    int transactionMessageAttempts = 0;
-    ocpp_ConfigurationKey_getValue(ocpp_configurationKeyText[OCPP_CK_TransactionMessageAttempt], (void *)&transactionMessageAttempts);
+// void *ocpp_chargePoint_offlineDate_Handler_thread(void *arg)
+// {
+//     ocpp_chargePoint->offlineDate_obj.IsCreate = true;
+//     int transactionMessageAttempts = 0;
+//     ocpp_ConfigurationKey_getValue(ocpp_configurationKeyText[OCPP_CK_TransactionMessageAttempt], (void *)&transactionMessageAttempts);
 
-    int transactionMessageRetryInterval = 0;
-    ocpp_ConfigurationKey_getValue(ocpp_configurationKeyText[OCPP_CK_TransactionMessageRetryInterval], (void *)&transactionMessageRetryInterval);
+//     int transactionMessageRetryInterval = 0;
+//     ocpp_ConfigurationKey_getValue(ocpp_configurationKeyText[OCPP_CK_TransactionMessageRetryInterval], (void *)&transactionMessageRetryInterval);
 
-    if (transactionMessageRetryInterval <= 0)
-        transactionMessageRetryInterval = 1;
+//     if (transactionMessageRetryInterval <= 0)
+//         transactionMessageRetryInterval = 1;
 
-    TransactionRecord transaction;
-    memset(&transaction, 0, sizeof(TransactionRecord));
-    unsigned int SendStartTime = ocpp_AuxiliaryTool_getSystemTime_ms();
-    unsigned int SendStopTime = ocpp_AuxiliaryTool_getSystemTime_ms();
-    int transactionMessagefail = 0;
+//     unsigned int SendStartTime = ocpp_AuxiliaryTool_getSystemTime_ms();
+//     unsigned int SendStopTime = ocpp_AuxiliaryTool_getSystemTime_ms();
+//     int transactionMessagefail = 0;
 
-    int issendtransaction = 0;
-    while (1)
-    {
-        if (transactionMessagefail >= transactionMessageRetryInterval || !ocpp_chargePoint->connect.isConnect)
-        {
-            break;
-        }
-        if (ocpp_ReadSingleIncompleteTransaction(&transaction) == 0 && issendtransaction == 0)
-        {
-            issendtransaction = 1;
-            if (transaction.Reason != 5)
-            {
+//     int issendtransaction = 0;
+//     while (1)
+//     {
+//         if (transactionMessagefail >= transactionMessageRetryInterval || !ocpp_chargePoint->connect.isConnect)
+//         {
+//             break;
+//         }
+//         if (ocpp_ReadSingleIncompleteTransaction(&transaction) == 0 && issendtransaction == 0)
+//         {
+//             issendtransaction = 1;
+//             if (transaction.Reason != 5)
+//             {
 
-                ocpp_chargePoint->offlineDate_obj.StartResponse = false;
-                ocpp_chargePoint->offlineDate_obj.TransactionID = 0;
-                memcpy(ocpp_chargePoint->offlineDate_obj.StartUniqueID, transaction.StartUniqueID, 37);
-                printf("发送离线开始事物\n");
-                ocpp_chargePoint_sendStartTransaction(transaction.ConnectorID, transaction.idTag, transaction.ReservationId, transaction.StartUniqueID, transaction.StartTimes, transaction.MeterStart);
-                memcpy(ocpp_chargePoint->offlineDate_obj.StartUniqueID, transaction.StartUniqueID, 37);
-                SendStartTime = ocpp_AuxiliaryTool_getSystemTime_ms();
-                while (1)
-                {
-                    if (ocpp_AuxiliaryTool_getDiffTime_ms(&SendStartTime) > 10000)
-                    {
-                        printf("发送离线开始事物回复超时\n");
-                        transactionMessagefail++;
-                        break;
-                    }
-                    if (ocpp_chargePoint->offlineDate_obj.StartResponse)
-                    {
-                        break;
-                    }
-                    usleep(1000 * 1000); // 100ms
-                }
-                if (ocpp_chargePoint->offlineDate_obj.StartResponse)
-                {
-                    ocpp_UpdateTransactionIDByUniqueID(transaction.StartUniqueID, ocpp_chargePoint->offlineDate_obj.TransactionID);
-                    sleep(3);
-                    ocpp_chargePoint->offlineDate_obj.StopResponse = 0;
-                    SendStopTime = ocpp_AuxiliaryTool_getSystemTime_ms();
-                    printf("发送离线停止事物\n");
-                    ocpp_transaction_sendStopTransaction_Simpleness(transaction.ConnectorID, transaction.idTag, ocpp_chargePoint->offlineDate_obj.TransactionID, transaction.StopUniqueID, transaction.MeterStop, transaction.StartTimes, transaction.Reason);
-                    memcpy(ocpp_chargePoint->offlineDate_obj.StopUniqueID, transaction.StopUniqueID, 37);
-                    while (1)
-                    {
-                        if (ocpp_AuxiliaryTool_getDiffTime_ms(&SendStopTime) > 10000)
-                        {
-                            printf("发送离线停止事物回复超时\n");
-                            transactionMessagefail++;
-                            break;
-                        }
-                        if (ocpp_chargePoint->offlineDate_obj.StopResponse)
-                        {
-                            break;
-                        }
-                        usleep(1000 * 1000); // 100ms
-                    }
-                }
-                memset(&transaction, 0, sizeof(TransactionRecord));
-            }
-            usleep(1000 * 1000); // 100ms
-            issendtransaction = 0;
-        }
-        else
-        {
-            printf("发送所有事物完成\n");
-            break;
-        }
-        usleep(1000 * 1000); // 100ms
-    }
-    memset(&ocpp_chargePoint->offlineDate_obj, 0, sizeof(ocpp_chargePoint->offlineDate_obj));
-    printf("离线线程退出\n");
-    return NULL;
-}
+//                 ocpp_chargePoint->offlineDate_obj.StartResponse = false;
+//                 ocpp_chargePoint->offlineDate_obj.TransactionID = 0;
+//                 memcpy(ocpp_chargePoint->offlineDate_obj.StartUniqueID, transaction.StartUniqueID, 37);
+//                 printf("发送离线开始事物\n");
+//                 ocpp_chargePoint_sendStartTransaction(transaction.ConnectorID, transaction.idTag, transaction.ReservationId, transaction.StartUniqueID, transaction.StartTimes, transaction.MeterStart);
+//                 memcpy(ocpp_chargePoint->offlineDate_obj.StartUniqueID, transaction.StartUniqueID, 37);
+//                 SendStartTime = ocpp_AuxiliaryTool_getSystemTime_ms();
+//                 while (1)
+//                 {
+//                     if (ocpp_AuxiliaryTool_getDiffTime_ms(&SendStartTime) > 10000)
+//                     {
+//                         printf("发送离线开始事物回复超时\n");
+//                         transactionMessagefail++;
+//                         break;
+//                     }
+//                     if (ocpp_chargePoint->offlineDate_obj.StartResponse)
+//                     {
+//                         break;
+//                     }
+//                     usleep(1000 * 1000); // 100ms
+//                 }
+//                 if (ocpp_chargePoint->offlineDate_obj.StartResponse)
+//                 {
+//                     ocpp_UpdateTransactionIDByUniqueID(transaction.StartUniqueID, ocpp_chargePoint->offlineDate_obj.TransactionID);
+//                     sleep(3);
+//                     ocpp_chargePoint->offlineDate_obj.StopResponse = 0;
+//                     SendStopTime = ocpp_AuxiliaryTool_getSystemTime_ms();
+//                     printf("发送离线停止事物\n");
+//                     ocpp_transaction_sendStopTransaction_Simpleness(transaction.ConnectorID, transaction.idTag, ocpp_chargePoint->offlineDate_obj.TransactionID, transaction.StopUniqueID, transaction.MeterStop, transaction.StartTimes, transaction.Reason);
+//                     memcpy(ocpp_chargePoint->offlineDate_obj.StopUniqueID, transaction.StopUniqueID, 37);
+//                     while (1)
+//                     {
+//                         if (ocpp_AuxiliaryTool_getDiffTime_ms(&SendStopTime) > 10000)
+//                         {
+//                             printf("发送离线停止事物回复超时\n");
+//                             transactionMessagefail++;
+//                             break;
+//                         }
+//                         if (ocpp_chargePoint->offlineDate_obj.StopResponse)
+//                         {
+//                             break;
+//                         }
+//                         usleep(1000 * 1000); // 100ms
+//                     }
+//                 }
+//                 memset(&transaction, 0, sizeof(TransactionRecord));
+//             }
+//             usleep(1000 * 1000); // 100ms
+//             issendtransaction = 0;
+//         }
+//         else
+//         {
+//             printf("发送所有事物完成\n");
+//             break;
+//         }
+//         usleep(1000 * 1000); // 100ms
+//     }
+//     memset(&ocpp_chargePoint->offlineDate_obj, 0, sizeof(ocpp_chargePoint->offlineDate_obj));
+//     printf("离线线程退出\n");
+//     return NULL;
+// }
 
 /**
  * @description: boot线程
@@ -601,7 +599,6 @@ static void *ocpp_chargePoint_boot(void *arg)
     bool minimumStatusDurationIsUse;
     unsigned int minimumStatusDuration = 1;
     int i;
-    TransactionRecord transaction;
     while (1)
     {
 
@@ -3624,15 +3621,13 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         memset(&startTransaction, 0, sizeof(startTransaction));
         // Extract data
         startTransaction.transactionId = json_object_get_int(transactionId_obj);
-        ocpp_UpdateTransactionIDByUniqueID(uniqueId_str, startTransaction.transactionId);
-        ocpp_UpdateStatusByUniqueID(uniqueId_str, 1);
         const char *status_str = json_object_get_string(status_obj);
-        if (strcmp(status_str, "Accepted") == 0 && strcmp(ocpp_chargePoint->offlineDate_obj.StartUniqueID, uniqueId_str) == 0)
-        {
-            printf("接收到离线事物回复\n");
-            ocpp_chargePoint->offlineDate_obj.StartResponse = true;
-            ocpp_chargePoint->offlineDate_obj.TransactionID = startTransaction.transactionId;
-        }
+        // if (strcmp(status_str, "Accepted") == 0 && strcmp(ocpp_chargePoint->offlineDate_obj.StartUniqueID, uniqueId_str) == 0)
+        // {
+        //     printf("接收到离线事物回复\n");
+        //     ocpp_chargePoint->offlineDate_obj.StartResponse = true;
+        //     ocpp_chargePoint->offlineDate_obj.TransactionID = startTransaction.transactionId;
+        // }
         int i;
         for (i = 0; i < OCPP_LOCAL_AUTHORIZATION_MAX; i++)
         {
@@ -3709,7 +3704,6 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         int i = 0;
         if (idTagInfo_obj != NULL)
         {
-            ocpp_UpdateCompletedByUniqueID(uniqueId_str, 1);
             stopTransaction.idTagInfoIsUse = 1;
             json_object *status_obj = json_object_object_get(idTagInfo_obj, "status");
             json_object *expiryDate_obj = json_object_object_get(idTagInfo_obj, "expiryDate");
