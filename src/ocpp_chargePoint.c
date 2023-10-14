@@ -78,6 +78,10 @@ void ocpp_chargePoint_userPushStartButton(char *idTag, int connector)
 void ocpp_chargePoint_userPushStopButton(char *idTag, int connector, enum OCPP_PACKAGE_STOP_REASON_E reason)
 {
     printf("=======用户点击停止充电=======\n");
+    if (connector < 0 || connector > ocpp_chargePoint->numberOfConnector)
+    {
+        return;
+    }
     ocpp_chargePoint_transaction_t *transaction = ocpp_chargePoint->transaction_obj[connector];
     transaction->isStop = true;
     transaction->reason = reason;
@@ -106,8 +110,10 @@ void setConnectorStatus(int connector, enum OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_E
         return;
     if (ocpp_chargePoint->connector[connector] == NULL)
         return;
-    if (connector > ocpp_chargePoint->numberOfConnector)
+    if (connector < 0 || connector > ocpp_chargePoint->numberOfConnector)
+    {
         return;
+    }
 
     ocpp_chargePoint->connector[connector]->errorCode = errorCode;
     ocpp_chargePoint->connector[connector]->status = status;
@@ -138,8 +144,10 @@ void setConnectorErrInfo(int connector, const char *info, const char *vendorID, 
         return;
     if (ocpp_chargePoint->connector[connector] == NULL)
         return;
-    if (connector > ocpp_chargePoint->numberOfConnector)
+    if (connector < 0 || connector > ocpp_chargePoint->numberOfConnector)
+    {
         return;
+    }
 
     ocpp_chargePoint->connector[connector]->infoIsUse = 0;
     ocpp_chargePoint->connector[connector]->vendorIdIsUse = 0;
