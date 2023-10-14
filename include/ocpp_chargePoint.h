@@ -76,9 +76,9 @@ typedef struct{
 typedef struct{
 	bool IsCreate;                            //是否已经创建线程
     char Status[16];
-	char StartUniqueID[40];
+	char StartUniqueID[37];
     bool StartResponse;
-    char StopUniqueID[40];
+    char StopUniqueID[37];
     bool StopResponse;
 	bool IsRetransmission;
 	int  TransactionID;

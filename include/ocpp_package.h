@@ -1434,8 +1434,8 @@ typedef struct {
 void ocpp_package_prepare_Status_Req(char *UniqueId, int status);
 //发送MeterValues，StartTransaction，StopTransaction_Simpleness
 int ocpp_chargePoint_sendMeterValues(int connector, int transactionId);
-int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *lastUniqueId);
-int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *idTag, int transactionId, const char *lastUniqueId, enum OCPP_PACKAGE_STOP_REASON_E reason);
+int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *UniqueId,char *timestamp,int metervalue);
+int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *idTag, int transactionId, const char *UniqueId,int meterStop, char *timestamp,enum OCPP_PACKAGE_STOP_REASON_E reason);
 //发送Heartbeat，BootNotification，StatusNotification
 int ocpp_chargePoint_sendHeartbeat_Req();
 int ocpp_chargePoint_sendBootNotification_req();

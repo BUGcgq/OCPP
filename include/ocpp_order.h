@@ -18,8 +18,8 @@ typedef struct {
     int MeterStop;
     char StartTimes[32];
     char StopTimes[32];
-    char StartUniqueID[32];
-    char StopUniqueID[32];
+    char StartUniqueID[37];
+    char StopUniqueID[37];
     int Status;
     int Reason;
     int ReservationId;

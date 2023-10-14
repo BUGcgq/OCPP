@@ -63,7 +63,7 @@ static int ocpp_Order_create_table(sqlite3 *db)
 	return 0;
 }
 
-// Status 0 订单在离线充电，1 订单在线充电，2 已经结束充电
+
 int ocpp_Transaction_insert(int TransactionID, int ConnectorID, const char *IdTag, int MeterStart, const char *StartTimes, const char *StartUniqueID, int Status, int Reason, int ReservationId)
 {
 	if (ocpp_OL == NULL)
@@ -398,7 +398,8 @@ int ocpp_ReadSingleIncompleteTransaction(TransactionRecord *transaction)
 		return -1; // 数据库指针为空，操作失败
 	}
 
-	const char *selectSQL = "SELECT * FROM Transactions WHERE (Reason = 5 OR (Completed != 1 AND Status != 0 AND Status != 1)) ORDER BY Reason = 5 DESC, ID ASC LIMIT 1;";
+	const char *selectSQL = "SELECT * FROM Transactions WHERE (Completed != 1 AND Status != 0) ORDER BY ID ASC LIMIT 1;";
+
 	sqlite3_stmt *stmt = NULL;
 
 	if (sqlite3_prepare_v2(ocpp_OL, selectSQL, -1, &stmt, NULL) != SQLITE_OK)

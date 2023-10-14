@@ -66,39 +66,44 @@ int ocpp_chargePoint_sendBootNotification_req()
     ocpp_package_BootNotification_req_t bootNotification;
     memset(&bootNotification, 0, sizeof(bootNotification));
 
-    bootNotification.chargeBoxSerialNumberIsUse = 1;
-    if (ocpp_chargePoint->getChargeBoxSerialNumber(bootNotification.chargeBoxSerialNumber, 25) == false)
-        memset(bootNotification.chargeBoxSerialNumber, 0, 25);
+    ocpp_chargePoint->getChargePointModel(bootNotification.chargePointModel, 20);
+    ocpp_chargePoint->getChargePointVendor(bootNotification.chargePointVendor, 20);
 
-    if (ocpp_chargePoint->getChargePointModel(bootNotification.chargePointModel, 20) == false)
-        memset(bootNotification.chargePointModel, 0, 20);
+    if (ocpp_chargePoint->getChargeBoxSerialNumber(bootNotification.chargeBoxSerialNumber, 25) == true)
+    {
+        bootNotification.chargeBoxSerialNumberIsUse = 1;
+    }
 
-    bootNotification.chargePointSerialNumberIsUse = 1;
-    if (ocpp_chargePoint->getChargePointSerialNumber(bootNotification.chargePointSerialNumber, 25) == false)
-        memset(bootNotification.chargePointSerialNumber, 0, 25);
+    if (ocpp_chargePoint->getChargePointSerialNumber(bootNotification.chargePointSerialNumber, 25) == true)
+    {
+        bootNotification.chargePointSerialNumberIsUse = 1;
+    }
 
-    if (ocpp_chargePoint->getChargePointVendor(bootNotification.chargePointVendor, 20) == false)
-        memset(bootNotification.chargePointVendor, 0, 20);
 
-    bootNotification.firmwareVersionIsUse = 1;
-    if (ocpp_chargePoint->getFirmwareVersion(bootNotification.firmwareVersion, 50) == false)
-        memset(bootNotification.firmwareVersion, 0, 50);
+    if (ocpp_chargePoint->getFirmwareVersion(bootNotification.firmwareVersion, 50) == true)
+    {
+        bootNotification.firmwareVersionIsUse = 1;
+    }
 
-    bootNotification.iccidIsUse = 1;
-    if (ocpp_chargePoint->getIccid(bootNotification.iccid, 20) == false)
-        memset(bootNotification.iccid, 0, 20);
+    if (ocpp_chargePoint->getIccid(bootNotification.iccid, 20) == true)
+    {
+        bootNotification.iccidIsUse = 1;
+    }
 
-    bootNotification.imsiIsUse = 1;
-    if (ocpp_chargePoint->getImsi(bootNotification.imsi, 20) == false)
-        memset(bootNotification.imsi, 0, 20);
+    if (ocpp_chargePoint->getImsi(bootNotification.imsi, 20) == true)
+    {
+        bootNotification.imsiIsUse = 1;
+    }
 
-    bootNotification.meterSerialNumberIsUse = 1;
-    if (ocpp_chargePoint->getMeterSerialNumber(bootNotification.meterSerialNumber, 25) == false)
-        memset(bootNotification.meterSerialNumber, 0, 25);
+    if (ocpp_chargePoint->getMeterSerialNumber(bootNotification.meterSerialNumber, 25) == true)
+    {
+        bootNotification.meterSerialNumberIsUse = 1;
+    }
 
-    bootNotification.meterTypeIsUse = 1;
-    if (ocpp_chargePoint->getMeterType(bootNotification.meterType, 25) == false)
-        memset(bootNotification.meterType, 0, 25);
+    if (ocpp_chargePoint->getMeterType(bootNotification.meterType, 25) == true)
+    {
+        bootNotification.meterTypeIsUse = 1;
+    }
 
     json_object_object_add(payload_object, "chargePointModel", json_object_new_string(bootNotification.chargePointModel));
     if (bootNotification.chargeBoxSerialNumberIsUse)
@@ -546,22 +551,16 @@ int ocpp_chargePoint_sendMeterValues(int connector, int transactionId)
  * @param:
  * @return:
  */
-int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *lastUniqueId)
+int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *UniqueId, char *timestamp, int metervalue)
 {
-    char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
-    char *timestamp = ocpp_AuxiliaryTool_GetCurrentTime();
     struct json_object *root_object = json_object_new_array();
-    if (root_object == NULL || uniqueId == NULL || timestamp == NULL)
+    if (root_object == NULL || UniqueId == NULL || timestamp == NULL)
     {
         return -1;
     }
 
-    memcpy(lastUniqueId, uniqueId, 40);
-
-    int metervalue = (int)ocpp_chargePoint->getCurrentMeterValues(connector);
-
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
-    json_object_array_add(root_object, json_object_new_string(uniqueId));
+    json_object_array_add(root_object, json_object_new_string(UniqueId));
     json_object_array_add(root_object, json_object_new_string("StartTransaction"));
     struct json_object *payload_object = json_object_new_object();
     json_object_object_add(payload_object, "connectorId", json_object_new_int(connector));
@@ -574,11 +573,7 @@ int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int 
     json_object_object_add(payload_object, "timestamp", json_object_new_string(timestamp));
     json_object_array_add(root_object, payload_object);
     const char *json_string = json_object_to_json_string(root_object);
-    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_STARTTRANSACTION);
-
-    free(uniqueId);
-
-    free(timestamp);
+    enqueueSendMessage(UniqueId, json_string, OCPP_PACKAGE_STARTTRANSACTION);
 
     free(root_object);
 
@@ -637,23 +632,17 @@ int ocpp_chargePoint_sendStatusNotification_Req(int connector)
  * @param:
  * @return:
  */
-int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *idTag, int transactionId, const char *lastUniqueId, enum OCPP_PACKAGE_STOP_REASON_E reason)
+int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *idTag, int transactionId, const char *UniqueId, int meterStop, char *timestamp, enum OCPP_PACKAGE_STOP_REASON_E reason)
 {
-    char *uniqueId = ocpp_AuxiliaryTool_GenerateUUID();
-    if (lastUniqueId != NULL)
-    {
-        memcpy(lastUniqueId, uniqueId, 40);
-    }
+
     const char *transactionDataStr = NULL;
-    int meterStop = (int)ocpp_chargePoint->getCurrentMeterValues(connector);
-    char *timestamp = ocpp_AuxiliaryTool_GetCurrentTime();
     struct json_object *root_object = json_object_new_array();
-    if (root_object == NULL || uniqueId == NULL || timestamp == NULL)
+    if (root_object == NULL || UniqueId == NULL || timestamp == NULL)
     {
         return -1;
     }
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
-    json_object_array_add(root_object, json_object_new_string(uniqueId));
+    json_object_array_add(root_object, json_object_new_string(UniqueId));
     json_object_array_add(root_object, json_object_new_string("StopTransaction"));
 
     struct json_object *payload_object = json_object_new_object();
@@ -913,13 +902,8 @@ int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *i
 
     json_object_array_add(root_object, payload_object);
     const char *json_string = json_object_to_json_string(root_object);
-    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_STOPTRANSACTION);
-    ocpp_Transaction_update(transactionId,meterStop,timestamp,uniqueId,2,reason);
+    enqueueSendMessage(UniqueId, json_string, OCPP_PACKAGE_STOPTRANSACTION);
     json_object_put(root_object);
-
-    free(uniqueId);
-
-    free(timestamp);
 
     return 0;
 }
