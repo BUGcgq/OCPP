@@ -131,7 +131,7 @@ static void ocpp_ConfiguartionKey_data_init(OCPP_ConfigurationKey_t *OCPP_Config
 	OCPP_ConfigurationKey[OCPP_CK_MeterValuesAlignedData].accessibility = OCPP_ACC_READWRITE;
 	OCPP_ConfigurationKey[OCPP_CK_MeterValuesAlignedData].dataType = OCPP_CK_DT_STRING;
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_MeterValuesAlignedData].type.stringData,
-			"Voltage,Current.Import,Energy.Active.Import.Register,SoC,Current.Offered,Power.Active.Import,Energy.Reactive.Import.Register", 512);
+			"Energy.Active.Import.Register,Power.Active.Import,Voltage,Current.Import,SoC", 512);
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_MeterValuesAlignedData].key,
 			ocpp_configurationKeyText[OCPP_CK_MeterValuesAlignedData], 64);
 
@@ -150,7 +150,7 @@ static void ocpp_ConfiguartionKey_data_init(OCPP_ConfigurationKey_t *OCPP_Config
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_MeterValuesSampledData].key,
 			ocpp_configurationKeyText[OCPP_CK_MeterValuesSampledData], 64);
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_MeterValuesSampledData].type.stringData,
-			"Voltage,Current.Import,Energy.Active.Import.Register,SoC,Current.Offered,Power.Active.Import,Energy.Reactive.Import.Register", 512);
+			"Energy.Active.Import.Register,Power.Active.Import,Voltage,Current.Import,SoC", 512);
 
 	// 9.1.16. MeterValuesSampledDataMaxLen
 	OCPP_ConfigurationKey[OCPP_CK_MeterValuesSampledDataMaxLength].isUsed = true;
@@ -228,7 +228,7 @@ static void ocpp_ConfiguartionKey_data_init(OCPP_ConfigurationKey_t *OCPP_Config
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_StopTxnAlignedData].key,
 			ocpp_configurationKeyText[OCPP_CK_StopTxnAlignedData], 64);
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_StopTxnAlignedData].type.stringData,
-			"Voltage,Current.Import,Energy.Active.Import.Register,SoC,Current.Offered,Power.Active.Import,Energy.Reactive.Import.Register", 512);
+			"Energy.Active.Import.Register,Power.Active.Import,Voltage,Current.Import,SoC", 512);
 
 	// 9.1.26. StopTxnAlignedDataMaxLength
 	OCPP_ConfigurationKey[OCPP_CK_StopTxnAlignedDataMaxLength].isUsed = true;
@@ -244,7 +244,7 @@ static void ocpp_ConfiguartionKey_data_init(OCPP_ConfigurationKey_t *OCPP_Config
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_StopTxnSampledData].key,
 			ocpp_configurationKeyText[OCPP_CK_StopTxnSampledData], 64);
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_StopTxnSampledData].type.stringData,
-			"Voltage,Current.Import,Energy.Active.Import.Register,SoC", 512);
+			"Energy.Active.Import.Register,Power.Active.Import,Voltage,Current.Import,SoC", 512);
 
 	// 9.1.28. StopTxnSampledDataMaxLength
 	OCPP_ConfigurationKey[OCPP_CK_StopTxnSampledDataMaxLength].isUsed = true;

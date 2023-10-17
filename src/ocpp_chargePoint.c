@@ -381,7 +381,7 @@ enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E ocpp_chargePoint_authorizationOfIdentif
     ocpp_ConfigurationKey_getValue(ocpp_configurationKeyText[OCPP_CK_LocalPreAuthorize], (void *)&localPreAuthorize);
     if (ocpp_chargePoint->connect.isConnect) // 服务器连接的情况下发送IdTag
     {
-        ocpp_chargePoint_sendAuthorize_req(idTag, uniqueId); // 返回uniqueId
+        ocpp_chargePoint_sendAuthorize_req(idTag, uniqueId);
         if (localPreAuthorize)                               // 支持localPreAuthorize授权
         {
             if (localAuthListEnabled) // 打开localAuthListEnabled
@@ -457,12 +457,14 @@ void ocpp_chargePoint_Authorization_IdTag(int connector, const char *idTag)
 
     enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E result;
 
-    char lastUniqueId[40];
-    result = ocpp_chargePoint_authorizationOfIdentifier(idTag, lastUniqueId);
 
-    if (lastUniqueId != NULL)
+    char *unique = ocpp_AuxiliaryTool_GenerateUUID();
+    result = ocpp_chargePoint_authorizationOfIdentifier(idTag, unique);
+
+    if (unique != NULL)
     {
-        strncpy(ocpp_chargePoint->authorizetion[connector]->lastUniqueId, lastUniqueId, 40);
+        strncpy(ocpp_chargePoint->authorizetion[connector]->lastUniqueId, unique, 40);
+        free(unique);
     }
     ocpp_chargePoint->authorizetion[connector]->result = result;
     ocpp_chargePoint->authorizetion[connector]->isWaitAuthoriza = false;
