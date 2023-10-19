@@ -292,9 +292,9 @@ static void ocpp_ConfiguartionKey_data_init(OCPP_ConfigurationKey_t *OCPP_Config
 			ocpp_configurationKeyText[OCPP_CK_UnlockConnectorOnEVSideDisconnect], 64);
 	// 9.1.34. WebSocketPingInterva
 	OCPP_ConfigurationKey[OCPP_CK_WebSocketPingInterval].isUsed = true;
-	OCPP_ConfigurationKey[OCPP_CK_WebSocketPingInterval].accessibility = OCPP_ACC_READWRITE;
+	OCPP_ConfigurationKey[OCPP_CK_WebSocketPingInterval].accessibility = OCPP_ACC_READONLY;
 	OCPP_ConfigurationKey[OCPP_CK_WebSocketPingInterval].dataType = OCPP_CK_DT_INTEGER;
-	OCPP_ConfigurationKey[OCPP_CK_WebSocketPingInterval].type.intData = 10;
+	OCPP_ConfigurationKey[OCPP_CK_WebSocketPingInterval].type.intData = 5;
 	strncpy(OCPP_ConfigurationKey[OCPP_CK_WebSocketPingInterval].key,
 			ocpp_configurationKeyText[OCPP_CK_WebSocketPingInterval], 64);
 	// 9.2.1. LocalAuthListEnabled

@@ -8,23 +8,13 @@ extern "C" {
 #include <stdbool.h>
 #include <sqlite3.h>
 #include "ocpp_config.h"
-
+#include <ocpp_chargePoint.h>
 
 
 
 
 //7.2. AuthorizationStatus
 
-enum OCPP_LOCAL_AUTHORIZATION_STATUS_E {
-    OCPP_LOCAL_AUTHORIZATION_ACCEPTED = 0,            // 授权已接受，允许充电
-    OCPP_LOCAL_AUTHORIZATION_BLOCKED,                 // 授权已被阻止，不允许充电
-    OCPP_LOCAL_AUTHORIZATION_EXPIRED,                 // 授权已过期，不允许充电
-    OCPP_LOCAL_AUTHORIZATION_INVALID,                 // 授权无效，不允许充电
-    OCPP_LOCAL_AUTHORIZATION_CONCURRENTTX,            // 授权已参与另一个交易，不允许多个交易
-                                                      // （仅适用于 StartTransaction.req）
-
-    OCPP_LOCAL_AUTHORIZATION_MAX
-};
 
 
 static const char * ocpp_localAuthorizationStatus_Text[] = {
@@ -34,15 +24,6 @@ static const char * ocpp_localAuthorizationStatus_Text[] = {
     "Invalid",
     "ConcurrentTx"
 };
-
-
-typedef struct{
-	char IdTag[OCPP_AUTHORIZATION_IDTAG_LEN];                                        //卡号
-	enum OCPP_LOCAL_AUTHORIZATION_STATUS_E status;                                   //卡状态
-	char expiryDate[32];                                                           //有效期
-	char parentIdTag[OCPP_AUTHORIZATION_IDTAG_LEN];                                  //父卡号
-
-}ocpp_localAuthorization_cache_record_t;
 
 
 

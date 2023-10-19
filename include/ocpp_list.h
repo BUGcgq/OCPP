@@ -10,6 +10,7 @@ extern "C" {
 
 #include "ocpp_package.h"
 #include "ocpp_connect.h"
+#include "ocpp_config.h"
 
 #define RED_COLOR "\033[31m"
 #define GREEN_COLOR "\033[32m"
@@ -20,10 +21,6 @@ extern "C" {
 #define WHITE_COLOR "\033[37m"
 
 #define RESET_COLOR "\033[0m"
-//////////////////////////////////////-发送-/////////////////////////////////////
-#define MESSAGE_UNIQUE_LEN 38 //Unique长度
-#define MESSAGE_CONTENT_LEN 2048//message长度
-#define MAX_TIMEOUT_SECONDS 4//回复超时时间
 
 typedef struct Message 
 {

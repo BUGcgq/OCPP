@@ -14,10 +14,7 @@ extern "C" {
 #endif
 #include<stdbool.h>
 #include<sqlite3.h>
-
-#define OCPP_CONFIGURATION_KEY_SIZE                75
-#define OCPP_CONFIGURATION_VALUES_STRING_MAX       512
-
+#include "ocpp_config.h"
 
 
 

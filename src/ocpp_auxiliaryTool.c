@@ -8,6 +8,10 @@
 #include <assert.h>
 #include <sys/time.h>
 #include "ocpp_auxiliaryTool.h"
+#include <math.h>
+#include <stdio.h>
+#include <semaphore.h>
+
 
 /**
  * @description:

@@ -35,7 +35,6 @@ int ocpp_chargePoint_sendAuthorize_req(const char *const idTag, char *lastUnique
 
     enqueueSendMessage(lastUniqueId, json_string, OCPP_PACKAGE_AUTHORIZE);
 
-
     json_object_put(root_object);
 
     return 0;
@@ -75,7 +74,6 @@ int ocpp_chargePoint_sendBootNotification_req()
     {
         bootNotification.chargePointSerialNumberIsUse = 1;
     }
-
 
     if (ocpp_chargePoint->getFirmwareVersion(bootNotification.firmwareVersion, 50) == true)
     {
@@ -742,9 +740,9 @@ int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *i
                 snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
                 snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
                 snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
-                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PAI]);
-                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PO]);
-                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerOffered(connector));
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PF]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerFactor(connector));
             }
             else if (strcmp(token, "Power.Active.Import") == 0)
             {
@@ -752,8 +750,8 @@ int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *i
                 snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
                 snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
                 snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PAI]);
-                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
-                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerFactor(connector));
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_WH]);
+                snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerActiveImport(connector));
             }
             else if (strcmp(token, "Power.Active.Export") == 0)
             {
@@ -761,7 +759,7 @@ int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *i
                 snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
                 snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
                 snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_PAE]);
-                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_V]);
+                snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_WH]);
                 snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getPowerActiveExport(connector));
             }
 
@@ -860,7 +858,7 @@ int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *i
                 snprintf(sampledValue[i].context, 32, "%s", ocpp_package_MeterValues_MS_context_text[OCPP_PACKAGE_METERVALUES_MS_CONTEXT_SAMPLE_CLOCK]);
                 snprintf(sampledValue[i].format, 32, "%s", ocpp_package_MeterValues_MS_format_text[OCPP_PACKAGE_METERVALUES_MS_FORMAT_RAW]);
                 snprintf(sampledValue[i].location, 32, "%s", ocpp_package_MeterValues_MS_location_text[OCPP_PACKAGE_METERVALUES_MS_LOCATION_OUTLET]);
-                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_CO]);
+                snprintf(sampledValue[i].measurand, 32, "%s", ocpp_package_MeterValues_MS_measurand_text[OCPP_PACKAGE_METERVALUES_MS_MEASURAND_CI]);
                 snprintf(sampledValue[i].unit, 32, "%s", ocpp_package_MeterValues_MS_unit_text[OCPP_PACKAGE_METERVALUES_MS_UNIT_A]);
                 snprintf(sampledValue[i].value, 16, "%0.2f", ocpp_chargePoint->getCurrentImport(connector));
             }

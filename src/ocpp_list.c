@@ -9,8 +9,6 @@
 #include <unistd.h>
 #include "ocpp_list.h"
 
-#define OCPP_LIST_TIMER_TIME_S 3 // 定时器时间
-
 SendMessageQueue sendQueue; // 发送队列
 RecvMessageQueue recvQueue; // 接收队列
 /**
@@ -129,7 +127,7 @@ void enqueueSendMessage(const char *Unique, const char *message, int action)
         sendQueue.tail->next = newMessage;
         sendQueue.tail = newMessage;
     }
-    sendQueue.nodeCount ++;
+    sendQueue.nodeCount++;
     // 唤醒等待的线程
     pthread_cond_signal(&sendQueue.cond);
 
@@ -144,7 +142,7 @@ void enqueueSendMessage(const char *Unique, const char *message, int action)
  */
 bool dequeueSendMessage(char *Unique, char *message, int *action, int *status)
 {
-    if (Unique == NULL || message == NULL || status == NULL) 
+    if (Unique == NULL || message == NULL || status == NULL)
     {
         fprintf(stderr, "Invalid input: Unique, message, status, or startTime is NULL\n");
         return false; // 不处理无效输入
@@ -153,7 +151,7 @@ bool dequeueSendMessage(char *Unique, char *message, int *action, int *status)
 
     while (sendQueue.head == NULL)
     {
-        pthread_cond_wait(&sendQueue.cond, &sendQueue.mutex);
+        pthread_cond_wait(&sendQueue.cond, &sendQueue.mutex); // 如果队列为空，等待新的节点插入才往下读取
     }
 
     SendMessage *messageNode = sendQueue.head;
@@ -257,7 +255,7 @@ static void deleteSendMessage(const char *Unique)
             {
                 sendQueue.tail = prev;
             }
-            sendQueue.nodeCount --;
+            sendQueue.nodeCount--;
             free(current);
             break;
         }
@@ -265,7 +263,7 @@ static void deleteSendMessage(const char *Unique)
         prev = current;
         current = current->next;
     }
-    
+
     // 检查是否还有其他消息
     if (sendQueue.head != NULL)
     {
@@ -285,9 +283,9 @@ void *sendMessageToServer(void *arg)
     char message[MESSAGE_CONTENT_LEN];
     int status;
     int action;
-    int Timeout = 0;
     time_t sendTime;
     bool messageSent = false; // 标志变量，追踪消息是否已发送
+     int timeoutCount = 0; // 超时次数标志位
     while (1)
     {
         if (dequeueSendMessage(Unique, message, &action, &status))
@@ -310,22 +308,28 @@ void *sendMessageToServer(void *arg)
                 {
                     // 只有当状态不是已回复时才更新为超时
                     status = 2; // 2 表示超时
-                    Timeout ++ ;
-                }
-                if (Timeout >= 3)
-                {
-                   Timeout = 0;
-                   connect->interrupted == true;
+                    timeoutCount++; // 增加超时次数
                 }
             }
 
             if (status == 1 || status == 2 || !connect->isConnect)
             {
+                if (status == 1)
+                {
+                    timeoutCount = 0; // 重置超时次数
+                }
+                
                 deleteSendMessage(Unique);
                 messageSent = false;
                 status = 0;
             }
-
+            if (messageSent >= MAX_TIMEOUT_COUNT)
+            {
+                pthread_mutex_lock(&sendQueue.mutex);
+                connect->isConnect = false;
+                pthread_mutex_unlock(&sendQueue.mutex);
+                timeoutCount = 0; // 重置超时次数
+            }
             memset(message, 0, MESSAGE_CONTENT_LEN);
             memset(Unique, 0, MESSAGE_UNIQUE_LEN);
         }

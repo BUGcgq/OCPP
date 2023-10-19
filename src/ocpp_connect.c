@@ -5,60 +5,21 @@
 #include <errno.h>
 
 #include "ocpp_connect.h"
+#include "ocpp_config.h"
+#include "ocpp_auxiliaryTool.h"
 
-int current_reconnect_attempt = 0;
-int WebSocketPingInterval;
+static struct lws_client_connect_info ccinfo;
 #define OCPP_CONNECT_SEND_BUFFER 2048 // 发送缓存区大小
 // 每个使用这个协议的新连接在建立连接时都会分配这么多内存，在断开连接时会释放这么多内存。指向此按连接分配的指针被传递到user参数中的回调中
 typedef struct
 {
-	int fd;
-	struct lws_context *context;
 	ocpp_connect_t *connect;
-	struct lws_protocols *protocol;
-
 	size_t sendDataLen;						 // 发送数据大小
 	char sendbuff[OCPP_CONNECT_SEND_BUFFER]; // 发送存储区
-	pthread_mutex_t buffLock;				 // 缓存区锁
+	pthread_mutex_t mutex;
 } ocpp_connect_session_data_t;
 
 static ocpp_connect_session_data_t session_data;
-
-/**
- * @description: 建立连接
- * @param:
- * @return:
- */
-static int ocpp_connect_establish()
-{
-
-	struct lws_client_connect_info connectInfo;
-	memset(&connectInfo, 0, sizeof(struct lws_client_connect_info));
-	connectInfo.port = session_data.connect->port;
-	connectInfo.address = session_data.connect->address;
-	connectInfo.path = session_data.connect->path;
-	connectInfo.context = session_data.context;
-	if (session_data.connect->isWss)
-		connectInfo.ssl_connection = LCCSCF_USE_SSL | LCCSCF_ALLOW_EXPIRED;
-	else
-		connectInfo.ssl_connection = 0;
-
-	connectInfo.host = connectInfo.address;
-	connectInfo.origin = connectInfo.address;
-	connectInfo.ietf_version_or_minus_one = -1;
-	connectInfo.client_exts = NULL;
-	connectInfo.protocol = session_data.protocol->name;
-
-	lwsl_notice("ocpp connect address = %s  port = %d\n",connectInfo.address, connectInfo.port);
-	lwsl_notice("ocpp connect path = %s isWss = %d protocolName = %s\n",connectInfo.path, session_data.connect->isWss, connectInfo.protocol);
-
-	if (connectInfo.context == NULL)
-		lwsl_notice("ocpp connect context NULL\n");
-	if (!lws_client_connect_via_info(&connectInfo))
-		return 1;
-
-	return 0;
-}
 
 /**
  * @description:
@@ -104,21 +65,24 @@ static int ocpp_connect_websocket_send_back(struct lws *wsi_in, char *str, int s
  * @param:
  * @return:
  */
-static int send_ping(struct lws *wsi)
+int send_ping(struct lws *wsi)
 {
-	unsigned char ping_payload[LWS_PRE + 125];
-	memset(ping_payload, 0, sizeof(ping_payload));
+	unsigned char buf[LWS_PRE + 2]; // 2是Ping消息的大小
+	unsigned char *p = &buf[LWS_PRE];
 
-	int len = lws_write(wsi, &ping_payload[LWS_PRE], 0, LWS_WRITE_PING);
-	if (len < 0)
+	p[0] = 0x89; // 设置Ping帧的标志位
+	p[1] = 0x00; // 设置Payload Length，通常为0，或者根据需要设置具体大小
+
+	int ret = lws_write(wsi, p, 2, LWS_WRITE_PING);
+	if (ret < 0)
 	{
-		lwsl_notice("Ping sent ERROR!\n"); // 在发送成功时打印消息
-		return -1;						   // 发送失败
+		lwsl_err("send ping fail, ret = %d\n", ret);
+		return -1;
 	}
 	else
 	{
-		lwsl_notice("Ping sent successfully!\n"); // 在发送成功时打印消息
-		return 0;								  // 发送成功
+		lwsl_notice("send ping success, ret = %d\n", ret);
+		return 0;
 	}
 }
 
@@ -129,32 +93,42 @@ static int send_ping(struct lws *wsi)
  */
 static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len)
 {
-	static int pingCounter = 0;
+
 	switch (reason)
 	{
 	case LWS_CALLBACK_PROTOCOL_INIT:
-		lwsl_notice("protocol init\n");
-		ocpp_connect_establish();
-		lwsl_notice("protocol init end\n");
-
+		lwsl_notice("PROTOCOL_INIT\n");
 		break;
 
 	case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
 		lwsl_err("CONNECTION ERROR: %s\n", (char *)in);
-		session_data.connect->interrupted = true;
+		pthread_mutex_lock(&session_data.mutex);
+		session_data.connect->isConnect = false;
+		pthread_mutex_unlock(&session_data.mutex);
+		lws_close_reason(wsi, LWS_CLOSE_STATUS_GOINGAWAY, NULL, 0);
+		return -1;
 		break;
 
 	case LWS_CALLBACK_CLIENT_ESTABLISHED:
 		lwsl_notice("CONNECTION ESTABLISHED\n");
+		pthread_mutex_lock(&session_data.mutex);
 		session_data.connect->isConnect = true;
-		current_reconnect_attempt = 0;
+		pthread_mutex_unlock(&session_data.mutex);
+		lws_set_timer_usecs(wsi, 5000000);
 		lws_callback_on_writable(wsi);
-
 		break;
 
 	case LWS_CALLBACK_CLIENT_CLOSED:
 		lwsl_notice("CONNECTION CLOSED\n");
-		session_data.connect->interrupted = true;
+		pthread_mutex_lock(&session_data.mutex);
+		session_data.connect->isConnect = false;
+		pthread_mutex_unlock(&session_data.mutex);
+		wsi = lws_client_connect_via_info(&ccinfo); // 重新创建WebSocket客户端对象，并尝试连接服务器
+		if (wsi == NULL)
+		{
+			return -1;
+		}
+		sleep(SERVER_RECONNECT_INTERVAL);
 		break;
 
 	case LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER:
@@ -183,37 +157,28 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 	break;
 
 	case LWS_CALLBACK_TIMER:
-
-		pingCounter++;
-
-		if (pingCounter >= WebSocketPingInterval * 20)
+		if (send_ping(wsi) == -1)
 		{
-			pingCounter = 0;
-
-			// 发送ping帧
-			if (send_ping(wsi) < 0)
-			{
-				// ping失败，执行重新连接
-				lwsl_notice("ping失败,执行重新连接\n");
-				session_data.connect->interrupted = true;
-			}
+			lwsl_notice("检测到与服务器断开\n");
+			pthread_mutex_lock(&session_data.mutex);
+			session_data.connect->isConnect = false;
+			pthread_mutex_unlock(&session_data.mutex);
 		}
-
-		lws_callback_on_writable(wsi);
-
+		if (session_data.connect->isConnect == false)
+		{
+			lws_close_reason(wsi, LWS_CLOSE_STATUS_GOINGAWAY, NULL, 0);
+			return -1;
+		}
+		lws_set_timer_usecs(wsi, 5000000);
 		break;
-
 	case LWS_CALLBACK_CLIENT_WRITEABLE:
-		pthread_mutex_lock(&session_data.buffLock);
+		pthread_mutex_lock(&session_data.mutex);
 		if (session_data.sendDataLen > 0)
 		{
-			if (ocpp_connect_websocket_send_back(wsi, session_data.sendbuff, session_data.sendDataLen) < session_data.sendDataLen)
-				return -1;
+			ocpp_connect_websocket_send_back(wsi, session_data.sendbuff, session_data.sendDataLen);
 			session_data.sendDataLen = 0;
-			session_data.connect->isSendFinish = true;
 		}
-		pthread_mutex_unlock(&session_data.buffLock);
-		lws_set_timer_usecs(wsi, 50 * 1000); // 50ms
+		pthread_mutex_unlock(&session_data.mutex);
 		break;
 
 	case LWS_CALLBACK_CLIENT_RECEIVE:
@@ -238,19 +203,15 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
  */
 static void ocpp_connect_initialize_websocket_context(struct lws_context_creation_info *const info, struct lws_protocols *const protocol, ocpp_connect_t *const connect)
 {
+
 	memset(info, 0, sizeof(struct lws_context_creation_info));
 	memset(protocol, 0, sizeof(struct lws_protocols));
-	ocpp_ConfigurationKey_getValue("WebSocketPingInterval",&WebSocketPingInterval);
-	if (WebSocketPingInterval < 5)
-	{
-		WebSocketPingInterval = 5;
-	}
 	protocol->name = connect->protocolName;
 	protocol->callback = &ocpp_connect_service_callback;
 	protocol->per_session_data_size = 0;
 	protocol->rx_buffer_size = 0;
 	protocol->id = 0;
-	
+
 	info->port = CONTEXT_PORT_NO_LISTEN; // 创建客户端,不监听端口
 	info->iface = NULL;
 	info->protocols = protocol;
@@ -265,9 +226,9 @@ static void ocpp_connect_initialize_websocket_context(struct lws_context_creatio
 	info->client_ssl_key_mem = NULL;										   // 加载客户端密钥从内存而不是文件
 	info->client_ssl_key_mem_len = 0;										   //
 	info->client_ssl_ca_filepath = connect->ssl_ca_filepath;				   // CA证书文件路径或NULL
-	info->client_ssl_ca_mem = NULL;					 // 从内存加载CA证书，而不是文件
-	info->client_ssl_ca_mem_len = 0;				 //
-	info->client_ssl_cipher_list = "AES256-SHA:RSA"; // NULL;                               //支持的加密套件,用于在会话中加密
+	info->client_ssl_ca_mem = NULL;											   // 从内存加载CA证书，而不是文件
+	info->client_ssl_ca_mem_len = 0;										   //
+	info->client_ssl_cipher_list = "AES256-SHA:RSA";						   // NULL;                               //支持的加密套件,用于在会话中加密
 }
 
 /**
@@ -277,17 +238,13 @@ static void ocpp_connect_initialize_websocket_context(struct lws_context_creatio
  */
 static void ocpp_connect_send(const char *const message, size_t len)
 {
-
-	pthread_mutex_lock(&session_data.buffLock);
+	pthread_mutex_lock(&session_data.mutex);
 	strncpy(session_data.sendbuff, message, OCPP_CONNECT_SEND_BUFFER);
 	session_data.sendDataLen = len;
-	pthread_mutex_unlock(&session_data.buffLock);
-
+	pthread_mutex_unlock(&session_data.mutex);
 	return;
 }
 
-#define MAX_RECONNECT_ATTEMPTS 3
-#define MAX_WAIT_TIME_SECONDS 3
 /**
  * @description: 建立websock连接
  * @param:
@@ -298,73 +255,46 @@ static void *ocpp_connect_websocket(ocpp_connect_t *const connect)
 	struct lws_context *context = NULL;
 	struct lws_protocols protocol;
 	struct lws_context_creation_info info;
-	while (1)
+	struct lws *wsi = NULL;
+	ocpp_connect_initialize_websocket_context(&info, &protocol, connect);
+	context = lws_create_context(&info);
+	if (context == NULL)
 	{
-		lwsl_notice("连接服务器\n");
-		while (1)
-		{
-			ocpp_connect_initialize_websocket_context(&info, &protocol, connect);
-			context = lws_create_context(&info);
-			if (context == NULL)
-			{
-				lwsl_notice("初始化连接失败:等待5秒后重试\n");
-				usleep(5 * 1000 * 1000); // 等待一段时间后重试
-			}
-			else
-			{
-				lwsl_notice("初始化连接成功\n");
-				break; // 成功创建 context，跳出重试循环
-			}
-		}
-
-		session_data.context = context;
-		session_data.connect = connect;
-		session_data.protocol = &protocol;
-
-		int n = 0;
-		while (n >= 0 && connect->interrupted == false)
-		{
-			n = lws_service(context, 0);
-			if (n < 0)
-			{
-				lwsl_notice("lws_service returned error: %d\n", n);
-				break;
-			}
-		}
-
-		lwsl_notice("exiting service , interrupted = %d\n", connect->interrupted);
-
-		lws_context_destroy(context);
-		connect->interrupted = false;
-		connect->isConnect = false;
-
-		usleep(10 * 1000 * 1000); // 等待一段时间后进行下一次连接尝试
-
-		current_reconnect_attempt++;
-
-		lwsl_notice("第%d次尝试重连\n", current_reconnect_attempt);
-
-		if (current_reconnect_attempt >= MAX_RECONNECT_ATTEMPTS)
-		{
-			lwsl_notice("达到最大重连次数%d,等待%d分钟后再重试\n", MAX_RECONNECT_ATTEMPTS, MAX_WAIT_TIME_SECONDS);
-			sleep(MAX_WAIT_TIME_SECONDS * 60); // 等待一段时间后重试
-			current_reconnect_attempt = 0;	   // 重置重连计数
-		}
+		lwsl_notice("初始化上下文失败\n");
+		return;
 	}
 
+	lwsl_notice("初始化上下文成功\n"); // 只创建一次上下文，之后的重连都是根据这一次的来，如果多次创建上下文会导致文件描述符的增加，即使调用lws_context_destroy(context);也不能释放，导致设备重启
+	// 只创建一次上下文，只输入一次域名，如果域名对应的IP变了，重连是否还能连接上？
+	ccinfo.context = context;
+	ccinfo.port = connect->port;
+	ccinfo.address = connect->address;
+	ccinfo.path = connect->path;
+	ccinfo.ssl_connection = connect->isWss ? (LCCSCF_USE_SSL | LCCSCF_ALLOW_EXPIRED) : 0;
+	ccinfo.host = connect->address;
+	ccinfo.origin = connect->address;
+	ccinfo.ietf_version_or_minus_one = -1;
+	ccinfo.client_exts = NULL;
+	ccinfo.protocol = protocol.name;
+	while (1)
+	{
+		wsi = lws_client_connect_via_info(&ccinfo);
+		if (wsi != NULL)
+		{
+			break;
+		}
+		sleep(SERVER_RECONNECT_INTERVAL);
+	}
+
+	while (1)
+	{
+
+		lws_service(context, 500);
+	}
+
+	lws_context_destroy(context);
+
 	return NULL;
-}
-
-/**
- * @description:
- * @return {*}
- */
-bool ocpp_connect_isSendFinish()
-{
-	if (session_data.connect == NULL)
-		return false;
-
-	return session_data.connect->isSendFinish;
 }
 
 /**
@@ -376,13 +306,12 @@ void ocpp_connect_init(ocpp_connect_t *const connect)
 {
 	printf("连接初始化");
 	connect->send = ocpp_connect_send;
-	connect->isConnect = false;	  // default no connect server
-	connect->interrupted = false; // default no interrupted
-	connect->isSendFinish = true;
-	pthread_mutex_init(&session_data.buffLock, NULL);
+	connect->isConnect = false; // default no connect server
+	pthread_mutex_init(&session_data.mutex, NULL);
 	// 初始化缓存区
 	memset(session_data.sendbuff, 0, OCPP_CONNECT_SEND_BUFFER);
 	session_data.sendDataLen = 0;
+	session_data.connect = connect;
 	pthread_t ptid_connect;
 	if (pthread_create(&ptid_connect, NULL, ocpp_connect_websocket, connect) != 0)
 	{

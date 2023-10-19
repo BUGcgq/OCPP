@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #include "ocpp_localAuthorization.h"
-
+#include "ocpp_chargePoint.h"
 
 
 enum OCPP_PACKAGE{
@@ -100,20 +100,6 @@ typedef struct{
 }ocpp_package_Authorize_req_t;
 
 
-//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>Authorize.conf
-typedef struct{
-	char expiryDateIsUse:1;
-	char expiryDate[32];
-	char parentIdTagIsUse:1;
-	char parentIdTag[OCPP_AUTHORIZATION_IDTAG_LEN];
-	enum OCPP_LOCAL_AUTHORIZATION_STATUS_E AuthorizationStatus;
-}ocpp_package_idTagInfo_t;
-
-typedef struct{
-	ocpp_package_idTagInfo_t idTagInfo;
-
-}ocpp_package_Authorize_conf_t;
-
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>BootNotification.req
 enum OCPP_PACKAGE_CHARGEPOINT_MODEL{
@@ -127,6 +113,7 @@ enum OCPP_PACKAGE_CHARGEPOINT_MODEL{
 	OCPP_PACKAGE_CHARGEPOINT_MODE_MAX
 };
 
+
 static const char * ocpp_package_chargePointModel_text[] = {
 	"AC_single_phase_core",
 	"AC_three_phase_core",
@@ -136,6 +123,12 @@ static const char * ocpp_package_chargePointModel_text[] = {
 	"DC_unique"
 };
 
+typedef struct{
+	char currentTime[32];
+	int interval;
+	enum OCPP_PACKAGE_REGISTRATION_STATUS_E status;
+
+}ocpp_package_BootNotification_conf_t;
 
 typedef struct{
 	char chargeBoxSerialNumberIsUse:1;
@@ -167,28 +160,12 @@ typedef struct{
 
 
 
-//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>BootNotification.conf
-enum OCPP_PACKAGE_REGISTRATION_STATUS_E{
-	OCPP_PACKAGE_REGISTRATION_STATUS_ACCEPTED = 0,//操作被接受
-	OCPP_PACKAGE_REGISTRATION_STATUS_PENDING,//服务器忙
-	OCPP_PACKAGE_REGISTRATION_STATUS_REJECTED,//操作被拒绝
-
-	OCPP_PACKAGE_REGISTRATION_STATUS_MAX
-};
-
 static const char * ocpp_package_RegistrationStatus_text[] = {
 	"Accepted",
 	"Pending",
 	"Rejected"
 };
 
-
-typedef struct{
-	char currentTime[32];
-	int interval;
-	enum OCPP_PACKAGE_REGISTRATION_STATUS_E status;
-
-}ocpp_package_BootNotification_conf_t;
 
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>CancelReservation.req
@@ -410,15 +387,6 @@ typedef struct{
 
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>DiagnosticsStatusNotification.req
-enum OCPP_PACKAGE_DIAGNOSTICS_STATUS_E{
-	OCPP_PACKAGE_DIAGNOSTICS_STATUS_IDLE = 0,//诊断请求处于空闲状态
-	OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADED,//诊断请求的结果已上传。
-	OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOAD_FAILED,//诊断请求的结果上传失败
-	OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADING,//诊断请求的结果正在上传中
-
-	OCPP_PACKAGE_DIAGNOSTICS_STATUS_MAX
-
-};
 static const char * ocpp_package_DiagnosticsStatus_text[] = {
 	"Idle",
 	"Uploaded",
@@ -433,21 +401,6 @@ typedef struct{
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>DiagnosticsStatusNotification.conf
 
-
-
-//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>FirmwareStatusNotification.req
-enum OCPP_PACKAGE_FIRMWARE_STATUS_E{
-	OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADED = 0,//固件已下载
-	OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED,//固件下载失败
-	OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING,//固件正在下载中
-	OCPP_PACKAGE_FIRMWARE_STATUS_IDLE,//固件处于空闲状态
-	OCPP_PACKAGE_FIRMWARE_STATUS_INSTALLATION_FAILED,//固件安装失败
-	OCPP_PACKAGE_FIRMWARE_STATUS_INSTALLING,//固件正在安装中
-	OCPP_PACKAGE_FIRMWARE_STATUS_INSTALLED,//固件已安装
-
-	OCPP_PACKAGE_FIRMWARE_STATUS_MAX
-
-};
 static const char * ocpp_package_FirmwareStatus[] = {
 	"Downloaded",
 	"DownloadFailed",
@@ -1113,35 +1066,9 @@ typedef struct{
 }ocpp_package_StartTransaction_req_t;
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>StartTransaction.conf
-typedef struct{
-	ocpp_package_idTagInfo_t idTagInfo;
-	int transactionId;
-
-}ocpp_package_StartTransaction_conf_t;
 
 
-//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>StatusNotification.req
 
-enum OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_E {
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_CONNECTOR_LOCK_FAILURE = 0,   // 连接器锁定失败
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_EV_COMMUNICATION_ERROR,       // 电动汽车通信错误
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_GROUND_FAILURE,               // 地面故障
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_HIGH_TEMPERATURE,             // 高温故障
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_INTERNAL_ERROR,              // 内部错误
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_LOCALLIST_CONFLICT,           // 本地列表冲突
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_NOERROR,                      // 无错误
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_OTHER_ERROR,                 // 其他错误
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_OVERCURRENT_FAILURE,         // 过电流故障
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_OVERVOLTAGE,                 // 过电压
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_POWERMETER_FAILURE,          // 电能表故障
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_POWERSWITCH_FAILURE,         // 电源开关故障
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_READER_FAILURE,              // 读卡器故障
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_RESET_FAILURE,               // 复位故障
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_UNDERVOLTAGE,                // 欠电压
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_WEAKSIGNAL,                  // 信号弱
-
-    OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_MAX                           // 充电桩错误代码的数量，用于迭代或范围检查
-};
 
 static const char *ocpp_package_ChargePointErrorCode_text[] = {
 	"ConnectorLockFailure",
@@ -1162,20 +1089,6 @@ static const char *ocpp_package_ChargePointErrorCode_text[] = {
 	"WeakSignal"
 };
 
-enum OCPP_PACKAGE_CHARGEPOINT_STATUS_E {
-    OCPP_PACKAGE_CHARGEPOINT_STATUS_AVAILABLE = 0,            // 可用
-    OCPP_PACKAGE_CHARGEPOINT_STATUS_PREPARING,                // 准备中
-    OCPP_PACKAGE_CHARGEPOINT_STATUS_CHARGING,                 // 充电中
-    OCPP_PACKAGE_CHARGEPOINT_STATUS_SUSPENDED_EVSE,           // 充电枪挂起
-    OCPP_PACKAGE_CHARGEPOINT_STATUS_SUSPENDED_EV,             // 充电事务挂起
-    OCPP_PACKAGE_CHARGEPOINT_STATUS_FINISHING,                // 完成中
-    OCPP_PACKAGE_CHARGEPOINT_STATUS_RESERVED,                 // 已预约
-    OCPP_PACKAGE_CHARGEPOINT_STATUS_UNAVAILABLE,              // 不可用
-    OCPP_PACKAGE_CHARGEPOINT_STATUS_FAULTED,                  // 故障
-
-    OCPP_PACKAGE_CHARGEPOINT_STATUS_MAX                       // 充电桩状态的数量，方便循环遍历或判断范围
-};
-
 static const char * ocpp_package_ChargePointStatus_text[] = {
 	"Available",
 	"Preparing",
@@ -1189,27 +1102,6 @@ static const char * ocpp_package_ChargePointStatus_text[] = {
 };
 
 
-typedef struct{
-	int connectorId;
-	enum OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_E errorCode;
-
-	char infoIsUse:1;
-	char info[50];
-
-	enum OCPP_PACKAGE_CHARGEPOINT_STATUS_E status;
-	int  idTagStatus;
-
-	char timestampIsUse:1;
-	char timestamp[32];
-
-	char vendorIdIsUse:1;
-	char vendorId[255];
-
-	char vendorErrorCodeIsUse:1;
-	char vendorErrorCode[50];
-
-}ocpp_package_StatusNotification_req_t;
-
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>StatusNotification.conf
 typedef struct{
 
@@ -1218,23 +1110,6 @@ typedef struct{
 }ocpp_package_StatusNotification_conf_t;
 
 
-
-//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>StopTransaction.req
-enum OCPP_PACKAGE_STOP_REASON_E {
-    OCPP_PACKAGE_STOP_REASON_EMERGENCYSTOP = 0,    // 紧急停车
-    OCPP_PACKAGE_STOP_REASON_EVDISCONNECTED,       // 电动车断开连接
-    OCPP_PACKAGE_STOP_REASON_HARDRESET,            // 硬重置
-    OCPP_PACKAGE_STOP_REASON_LOCAL,                // 本地停止
-    OCPP_PACKAGE_STOP_REASON_OTHER,                // 其他原因
-    OCPP_PACKAGE_STOP_REASON_POWERLOSS,            // 断电
-    OCPP_PACKAGE_STOP_REASON_REBOOT,               // 重启
-    OCPP_PACKAGE_STOP_REASON_REMOTE,               // 远程停止
-    OCPP_PACKAGE_STOP_REASON_SOFTRESET,            // 软重置
-    OCPP_PACKAGE_STOP_REASON_UNLOCKCOMMAND,        // 解锁命令
-    OCPP_PACKAGE_STOP_REASON_DEAUTHORIZED,         // 未授权停车
-
-    OCPP_PACKAGE_STOP_REASON_MAX                   // 停止充电原因的数量，方便循环遍历或判断范围
-};
 
 static const char * ocpp_package_stop_reason_text[] = {
 	"EmergencyStop",
@@ -1265,13 +1140,6 @@ typedef struct{
 	ocpp_package_MeterValues_MeterValue_t transactionData;
 
 }ocpp_package_StopTransaction_req_t;
-
-//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>StopTransaction.conf
-typedef struct{
-	char idTagInfoIsUse:1;
-	ocpp_package_idTagInfo_t idTagInfo;
-
-}ocpp_package_StopTransaction_conf_t;
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>TriggerMessage.req
 enum OCPP_PCAKGE_MESSAGE_TRIGGER_E {

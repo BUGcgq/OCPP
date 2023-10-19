@@ -12,6 +12,7 @@
 #include "ocpp_package.h"
 #include "ocpp_firmwareUpdata.h"
 #include "ocpp_chargePoint.h"
+#include "ocpp_auxiliaryTool.h"
 extern ocpp_chargePoint_t *ocpp_chargePoint;
 // 通用文件下载函数，支持HTTP和FTP
 int download_file(const char *url, const char *local_file_path)
@@ -163,76 +164,80 @@ void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
 	time_t firmwareTime = mktime(&retrieveDate);
 	int secondsToWait = 0;
 	time_t currentTime = 0;
+	int allChargersStopped = 0; // 标志变量，0 表示不是所有枪都已停止充电
 	while (1)
 	{
 		if (retries >= UpdateFirmware->retries)
 		{
 			break;
 		}
-		// 如果当前有交易,则结束交易
-		for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
-		{
-			if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
-			{
-				ocpp_chargePoint->userPushStopButton(ocpp_chargePoint->transaction_obj[connector]->startIdTag, connector, OCPP_PACKAGE_STOP_REASON_SOFTRESET);
-			}
-		}
-		// 等待交易停止
-		while (!isStopAllTransaction)
-		{
-			for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
-			{
-				if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
-				{
-					break;
-				}
-			}
-
-			if (connector > ocpp_chargePoint->numberOfConnector)
-			{
-				isStopAllTransaction = true;
-			}
-
-			usleep(5 * 1000 * 1000);
-		}
 		ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING;
 		ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING);
-
 		if (download_file(UpdateFirmware->location, OCPP_FIRMWARE_UPDATA_FILEPATH) == 0)
 		{
 			downloadstatus = true;
+
 			ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADED;
+
 			ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADED);
 			break;
 		}
 		else
 		{
+
 			ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED;
 			ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED);
 		}
 		retries++;
 		usleep(UpdateFirmware->retryInterval * 1000 * 1000);
 	}
-	// 获取当前时间的时间戳
-	currentTime = time(NULL);
-	// 计算等待时间
-	secondsToWait = firmwareTime - currentTime;
-	if (secondsToWait > 0)
-	{
-		sleep(secondsToWait); // 等待到达升级时间
-	}
+
 	if (downloadstatus)
 	{
-		usleep(2 * 1000 * 1000); // 等待消息发送出去
+		// 获取当前时间的时间戳
+		currentTime = time(NULL);
+		// 计算等待时间
+		secondsToWait = firmwareTime - currentTime;
+		if (secondsToWait > 0)
+		{
+			sleep(secondsToWait); // 等待到达升级时间
+		}
+		while (!allChargersStopped)
+		{
+			allChargersStopped = 1; // 假设所有枪都已停止充电
+
+			for (int connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
+			{
+				if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
+				{
+					// 查询充电状态
+					if (isChargingStopped(ocpp_chargePoint->transaction_obj[connector]))
+					{
+						ocpp_chargePoint->transaction_obj[connector]->isTransaction = 0; // 设置为充电已停止
+					}
+					else
+					{
+						allChargersStopped = 0; // 有枪还在充电，将标志设置为 0
+					}
+				}
+			}
+
+			if (!allChargersStopped)
+			{
+				sleep(5); // 休眠 5 秒（你可以根据需求调整等待时间）
+			}
+		}
 		ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_INSTALLING);
-		usleep(3 * 1000 * 1000); // 等待消息发送出去
 		system("reboot");
 	}
+
 	if (UpdateFirmware)
 	{
 		free(UpdateFirmware);
 	}
+
 	ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState == OCPP_PACKAGE_FIRMWARE_STATUS_IDLE;
+
 	return NULL;
 }
 

@@ -17,7 +17,9 @@ unsigned int ocpp_AuxiliaryTool_getSystemTime_ms(void);
 unsigned int ocpp_AuxiliaryTool_getDiffTime_ms(unsigned int *pu32_last_time);
 int ocpp_AuxiliaryTool_charCounter(char* pString, char c);
 
-
+int v_globle_data_mutex_create(); //
+int v_globle_data_mutex_lock();
+int v_globle_data_mutex_unlock();
 
 #ifdef __cplusplus
 }
