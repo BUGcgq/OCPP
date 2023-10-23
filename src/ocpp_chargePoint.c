@@ -1,14 +1,13 @@
 
 #include "ocpp_chargePoint.h"
 #include "ocpp_configurationKey.h"
-#include "ocpp_auxiliaryTool.h"
 #include "ocpp_config.h"
 #include "ocpp_localAuthorization.h"
 #include "ocpp_list.h"
-#include "ocpp_order.h"
 #include "ocpp_firmwareUpdata.h"
 #include "ocpp_diagnostics.h"
 #include "ocpp_chargingProfile.h"
+#include "ocpp_auxiliaryTool.h"
 ocpp_chargePoint_t *ocpp_chargePoint = NULL;
 
 /**
@@ -51,12 +50,13 @@ void ocpp_chargePoint_setChangerStatus(int connector, int status)
 // 用户点击启动充电
 void ocpp_chargePoint_userPushStartButton(char *idTag, int connector)
 {
-     
+
     if (connector < 0 || connector > ocpp_chargePoint->numberOfConnector)
     {
-         
+
         return;
     }
+    write_data_lock();
     ocpp_chargePoint_transaction_t *transaction = ocpp_chargePoint->transaction_obj[connector];
     memset(transaction, 0, sizeof(ocpp_chargePoint_transaction_t));
     if (!transaction->isStart && !transaction->isTransaction)
@@ -64,18 +64,19 @@ void ocpp_chargePoint_userPushStartButton(char *idTag, int connector)
         strncpy(transaction->startIdTag, idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
         transaction->isStart = true;
     }
-     
+    rwlock_unlock();
 }
 
 // 用户点击停止充电
 void ocpp_chargePoint_userPushStopButton(char *idTag, int connector, enum OCPP_PACKAGE_STOP_REASON_E reason)
 {
-     
+
     if (connector < 0 || connector > ocpp_chargePoint->numberOfConnector)
     {
-         
+
         return;
     }
+    write_data_lock();
     ocpp_chargePoint_transaction_t *transaction = ocpp_chargePoint->transaction_obj[connector];
     transaction->isStop = true;
     transaction->reason = reason;
@@ -88,7 +89,7 @@ void ocpp_chargePoint_userPushStopButton(char *idTag, int connector, enum OCPP_P
         strncpy(transaction->stopIdTag, idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
         printf("stopIdTag = %s\n", transaction->stopIdTag);
     }
-     
+    rwlock_unlock();
 }
 
 /**
@@ -104,7 +105,7 @@ void setConnectorStatus(int connector, enum OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_E
     if (ocpp_chargePoint == NULL || ocpp_chargePoint->connector[connector] == NULL || connector < 0 || connector > ocpp_chargePoint->numberOfConnector)
         return;
 
-     
+    write_data_lock();
     ocpp_chargePoint->connector[connector]->errorCode = errorCode;
     ocpp_chargePoint->connector[connector]->status = status;
 
@@ -116,7 +117,7 @@ void setConnectorStatus(int connector, enum OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_E
     {
         free(timestamp);
     }
-     
+    rwlock_unlock();
     return;
 }
 
@@ -138,7 +139,7 @@ void setConnectorErrInfo(int connector, const char *info, const char *vendorID, 
     {
         return;
     }
-     
+    write_data_lock();
     ocpp_chargePoint->connector[connector]->infoIsUse = 0;
     ocpp_chargePoint->connector[connector]->vendorIdIsUse = 0;
     ocpp_chargePoint->connector[connector]->vendorErrorCodeIsUse = 0;
@@ -160,7 +161,7 @@ void setConnectorErrInfo(int connector, const char *info, const char *vendorID, 
         ocpp_chargePoint->connector[connector]->vendorErrorCodeIsUse = 1;
         strncpy(ocpp_chargePoint->connector[connector]->vendorErrorCode, vendorErrCode, 50);
     }
-     
+    rwlock_unlock();
     return;
 }
 
@@ -174,21 +175,21 @@ bool ocpp_chargePoint_getConnectStatus()
 {
     if (ocpp_chargePoint == NULL)
         return false;
-     
+    read_data_lock();
     bool Connect = ocpp_chargePoint->connect.isConnect;
-     
+    rwlock_unlock();
     return Connect;
-}/**
- * @description: 获取连接状态
- * @return {*}
- */
+} /**
+   * @description: 获取连接状态
+   * @return {*}
+   */
 bool ocpp_chargePoint_setConnectStatus(bool Status)
 {
-        if (ocpp_chargePoint == NULL)
+    if (ocpp_chargePoint == NULL)
         return false;
-     
+    write_data_lock();
     ocpp_chargePoint->connect.isConnect = Status;
-     
+    rwlock_unlock();
     return true;
 }
 static void *ocpp_chargePoint_Transaction_thread(void *arg)
@@ -298,7 +299,7 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
             }
             else
             {
-                ocpp_chargePoint->startCharging(connector, item->startupType);
+                ocpp_chargePoint->startCharging(connector, 3);
                 state = 1;
                 item->transactionId = ocpp_AuxiliaryTool_GenerateInt(); // 随机生成交易ID
                 Startoffline = true;
@@ -338,11 +339,13 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
             {
                 int metervalue = (int)ocpp_chargePoint->getCurrentMeterValues(connector);
                 memcpy(item->lastUniqueId, StopuniqueId, sizeof(item->lastUniqueId));
-                ocpp_transaction_sendStopTransaction_Simpleness(connector, item->startIdTag, item->transactionId, StopuniqueId, metervalue, Stoptimestamp, item->reason);
+                ocpp_transaction_sendStopTransaction(connector, item->startIdTag, item->transactionId, StopuniqueId, metervalue, Stoptimestamp, item->reason);
                 free(StopuniqueId);
                 free(Stoptimestamp);
             }
+            write_data_lock();
             memset(ocpp_chargePoint->transaction_obj[connector], 0, sizeof(ocpp_chargePoint_transaction_t));
+            rwlock_unlock();
             item = NULL;
             return NULL;
         }
@@ -430,62 +433,6 @@ enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E ocpp_chargePoint_authorizationOfIdentif
     }
 
     return OCPP_CHARGEPOINT_AUTHORIZE_RESULT_FAIL;
-}
-
-/**
- * @description:
- * @param {int} connector:0 indicate pile, 1 indicate connector0, 2 indicate connector1
- * @param {char *} idTag
- * @return {*}
- */
-void ocpp_chargePoint_Authorization_IdTag(int connector, const char *idTag)
-{
-
-    if (connector < 0 || connector > ocpp_chargePoint->numberOfConnector)
-    {
-        ocpp_chargePoint->setAuthorizeResult(connector, false);
-        return;
-    }
-
-    enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E result;
-
-    char *unique = ocpp_AuxiliaryTool_GenerateUUID();
-    result = ocpp_chargePoint_authorizationOfIdentifier(idTag, unique);
-
-    if (unique != NULL)
-    {
-        strncpy(ocpp_chargePoint->authorizetion[connector]->lastUniqueId, unique, 40);
-        free(unique);
-    }
-    ocpp_chargePoint->authorizetion[connector]->result = result;
-    ocpp_chargePoint->authorizetion[connector]->isWaitAuthoriza = false;
-
-    bool AllowOfflineTxForUnknownId = false;
-    ocpp_ConfigurationKey_getValue(ocpp_configurationKeyText[OCPP_CK_AllowOfflineTxForUnknownId], (void *)&AllowOfflineTxForUnknownId);
-
-    switch (result)
-    {
-    case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_FAIL:
-        ocpp_chargePoint->setAuthorizeResult(connector, false);
-        break;
-
-    case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_ONGOING:
-        ocpp_chargePoint->authorizetion[connector]->isWaitAuthoriza = true;
-        strncpy(ocpp_chargePoint->authorizetion[connector]->idTag, idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
-        break;
-
-    case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_UNKOWN:
-        if (AllowOfflineTxForUnknownId)
-            ocpp_chargePoint->setAuthorizeResult(connector, true);
-        else
-            ocpp_chargePoint->setAuthorizeResult(connector, false);
-        break;
-
-    case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_SUCCEED:
-        printf("授权成功\n");
-        ocpp_chargePoint->setAuthorizeResult(connector, true);
-        break;
-    }
 }
 
 /**
@@ -812,10 +759,14 @@ void ocpp_chargePoint_manageGetDiagnosticsRequest(ocpp_package_GetDiagnostics_re
     {
         GetDiagnostics_conf->retryInterval = 120;
     }
-    ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADING;
+
     pthread_t ptid_diagnostics;
     if (pthread_create(&ptid_diagnostics, NULL, ocpp_chargePoint_diagnostics_upload_thread, (void *)GetDiagnostics_conf) == -1)
     {
+        write_data_lock();
+        ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_IDLE;
+        rwlock_unlock();
+        ocpp_chargePoint_sendDiagnosticsStatusNotification_Req(OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOAD_FAILED);
         printf("create firmware thread fail\n");
     }
     else
@@ -849,17 +800,15 @@ void ocpp_chargePoint_manageUpdateFirmwareRequest(ocpp_package_UpdateFirmware_re
         updateFirmware_conf->retryInterval = 120;
     }
     printf("开始更新\n");
-     
-    ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState == OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING;
-     
+
     pthread_t tid_firmware;
     if (pthread_create(&tid_firmware, NULL, ocpp_chargePoint_UpdateFirmware_thread, (void *)updateFirmware_conf) == -1)
     {
+        write_data_lock();
+        ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_IDLE;
+        rwlock_unlock();
+        ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED);
         printf("create firmware thread fail\n");
-    }
-    else
-    {
-        pthread_detach(tid_firmware);
     }
 }
 
@@ -2801,7 +2750,10 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
             const char *stopTime_str = json_object_get_string(stopTime_obj);
             strncpy(getDiagnostics_req.stopTime, stopTime_str, 32);
         }
-        if (ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus == OCPP_PACKAGE_DIAGNOSTICS_STATUS_IDLE)
+        read_data_lock();
+        enum OCPP_PACKAGE_DIAGNOSTICS_STATUS_E DiagnosticsStatus = ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus;
+        rwlock_unlock();
+        if (DiagnosticsStatus == OCPP_PACKAGE_DIAGNOSTICS_STATUS_IDLE)
         {
             ocpp_chargePoint_manageGetDiagnosticsRequest(getDiagnostics_req);
             ocpp_package_prepare_Status_Req(uniqueId_str, 0);
@@ -2878,6 +2830,11 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
                     {
                         chargingProfiles.transactionId = 1;
                     }
+                }
+                json_object *stackLevel_obj = json_object_object_get(chargingProfile_obj, "stackLevel");
+                if (json_object_get_type(stackLevel_obj) == json_type_int)
+                {
+                    chargingProfiles.stackLevel = json_object_get_int(stackLevel_obj);
                 }
                 // 解析 chargingSchedule 对象
                 json_object *chargingSchedule_obj = json_object_object_get(chargingProfile_obj, "chargingSchedule");
@@ -3323,7 +3280,10 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
             updateFirmware_req.retryInterval = json_object_get_int(retryInterval_obj);
         }
         // 在需要创建线程的地方
-        if (ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState == OCPP_PACKAGE_FIRMWARE_STATUS_IDLE)
+        read_data_lock();
+        enum OCPP_PACKAGE_FIRMWARE_STATUS_E UpdateState = ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState;
+        rwlock_unlock();
+        if (UpdateState == OCPP_PACKAGE_FIRMWARE_STATUS_IDLE)
         {
             ocpp_chargePoint_manageUpdateFirmwareRequest(updateFirmware_req);
             ocpp_package_prepare_Status_Req(uniqueId_str, OCPP_PACKAGE_CONFIGURATION_STATUS_ACCEPTED);
@@ -3533,12 +3493,15 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         // Extract data
         startTransaction.transactionId = json_object_get_int(transactionId_obj);
         const char *status_str = json_object_get_string(status_obj);
-        // if (strcmp(status_str, "Accepted") == 0 && strcmp(ocpp_chargePoint->offlineDate_obj.StartUniqueID, uniqueId_str) == 0)
-        // {
-        //     printf("接收到离线事物回复\n");
-        //     ocpp_chargePoint->offlineDate_obj.StartResponse = true;
-        //     ocpp_chargePoint->offlineDate_obj.TransactionID = startTransaction.transactionId;
-        // }
+        if (strcmp(status_str, "Accepted") == 0 && strcmp(ocpp_chargePoint->offlineDate_obj.StartUniqueID, uniqueId_str) == 0)
+        {
+            printf("接收到离线事物回复\n");
+            write_data_lock();
+            ocpp_chargePoint->offlineDate_obj.StartResponse = true;
+            ocpp_chargePoint->offlineDate_obj.TransactionID = startTransaction.transactionId;
+            rwlock_unlock();
+            break;
+        }
         int i;
         for (i = 0; i < OCPP_LOCAL_AUTHORIZATION_MAX; i++)
         {
@@ -3548,7 +3511,6 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         if (i >= OCPP_LOCAL_AUTHORIZATION_MAX)
             return;
         startTransaction.idTagInfo.AuthorizationStatus = i;
-
         if (expiryDate_obj != NULL)
         {
             startTransaction.idTagInfo.expiryDateIsUse = 1;
@@ -3566,13 +3528,13 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         {
             if (strcmp(ocpp_chargePoint->transaction_obj[i]->lastUniqueId, uniqueId_str) == 0 && ocpp_chargePoint->transaction_obj[i]->isTransaction)
             {
-
+                write_data_lock();
                 ocpp_chargePoint->transaction_obj[i]->isRecStartTransaction_Conf = true;
                 memcpy(&ocpp_chargePoint->transaction_obj[i]->startTransaction, &startTransaction, sizeof(ocpp_package_StartTransaction_conf_t));
+                rwlock_unlock();
                 break;
             }
         }
-
         if (i > ocpp_chargePoint->numberOfConnector)
             return;
         // 更新认证缓存
@@ -3603,11 +3565,6 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         if (ocpp_chargePoint_checkStopTransaction_callResultPackage(uniqueId_str, payload_obj))
             return;
 
-        if (strcmp(ocpp_chargePoint->offlineDate_obj.StopUniqueID, uniqueId_str) == 0)
-        {
-            printf("接受到离线启动事物\n");
-            ocpp_chargePoint->offlineDate_obj.StopResponse = true;
-        }
         json_object *idTagInfo_obj = json_object_object_get(payload_obj, "idTagInfo");
 
         ocpp_package_StopTransaction_conf_t stopTransaction;
@@ -3621,7 +3578,13 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
             json_object *parentIdTag_obj = json_object_object_get(idTagInfo_obj, "parentIdTag_obj");
 
             const char *status_str = json_object_get_string(status_obj);
-
+            if (strcmp(status_str, "Accepted") == 0 && strcmp(ocpp_chargePoint->offlineDate_obj.StopUniqueID, uniqueId_str) == 0)
+            {
+                write_data_lock();
+                ocpp_chargePoint->offlineDate_obj.StopResponse = true;
+                rwlock_unlock();
+                break;
+            }
             for (i = 0; i < OCPP_LOCAL_AUTHORIZATION_MAX; i++)
             {
                 if (strcmp(status_str, ocpp_localAuthorizationStatus_Text[i]) == 0)
@@ -3649,8 +3612,10 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         {
             if (strcmp(ocpp_chargePoint->transaction_obj[i]->lastUniqueId, uniqueId_str) == 0 && ocpp_chargePoint->transaction_obj[i]->isTransaction)
             {
+                write_data_lock();
                 ocpp_chargePoint->transaction_obj[i]->isRecStopTransaction_Conf = true;
                 memcpy(&ocpp_chargePoint->transaction_obj[i]->stopTransaction, &stopTransaction, sizeof(ocpp_package_StopTransaction_conf_t));
+                rwlock_unlock();
                 break;
             }
         }
@@ -3874,21 +3839,22 @@ void *ocpp_chargePoint_client(void *arg)
             ocpp_chargePoint->RegistrationStatus = OCPP_PACKAGE_REGISTRATION_STATUS_MAX;
         }
         // 版本二
-        for (connector = 0; connector < ocpp_chargePoint->numberOfConnector; connector++)
+        read_data_lock();
+        for (connector = 1; connector < ocpp_chargePoint->numberOfConnector; connector++)
         {
             if (ocpp_chargePoint->connector[0]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_AVAILABLE)
             {
-                if (!ocpp_chargePoint->transaction_obj[connector + 1]->isTransaction && ocpp_chargePoint->transaction_obj[connector + 1]->isStart)
+                if (!ocpp_chargePoint->transaction_obj[connector]->isTransaction && ocpp_chargePoint->transaction_obj[connector]->isStart)
                 {
                     bool isAllowTransaction = false;
-                    if (ocpp_chargePoint->connector[connector + 1]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_PREPARING)
+                    if (ocpp_chargePoint->connector[connector]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_PREPARING)
                     {
                         isAllowTransaction = true;
                     }
                     if (isAllowTransaction)
                     {
                         pthread_t tid_transaction;
-                        if (pthread_create(&tid_transaction, NULL, ocpp_chargePoint_Transaction_thread, (void *)connector + 1) == -1)
+                        if (pthread_create(&tid_transaction, NULL, ocpp_chargePoint_Transaction_thread, (void *)connector) == -1)
                         {
                             printf("create transaction thread fail\n");
                         }
@@ -3896,9 +3862,8 @@ void *ocpp_chargePoint_client(void *arg)
                     }
                 }
             }
-
-        } // for_end
-
+        }
+        rwlock_unlock();
         usleep(1000 * 1000);
     } // for_end
 }
@@ -4050,6 +4015,7 @@ int ocpp_chargePoint_init(ocpp_chargePoint_t *pile)
     printf("path = %s\n", ocpp_chargePoint->connect.path);
 
     ////////////////////////////////////////////////
+    initialize_rwlock();
     ocpp_chargePoint_defaultFunc();
     ocpp_chargePoint->userPushStartButton = ocpp_chargePoint_userPushStartButton;
     ocpp_chargePoint->userPushStopButton = ocpp_chargePoint_userPushStopButton;
@@ -4077,8 +4043,6 @@ int ocpp_chargePoint_init(ocpp_chargePoint_t *pile)
     // 初始化OCPP本地认证
     ocpp_localAuthorization_init(ocpp_chargePoint->ocpp_db);
     ocpp_ChargingProfile_init(ocpp_chargePoint->ocpp_db);
-    // 初始化 offline
-    ocpp_order_init(ocpp_chargePoint->ocpp_db);
 
     // 初始化 Reserve
     ocpp_chargePoint->reserveConnector = (ocpp_reserve_t **)calloc(ocpp_chargePoint->numberOfConnector + 1, sizeof(ocpp_reserve_t *));
@@ -4129,5 +4093,6 @@ int ocpp_chargePoint_init(ocpp_chargePoint_t *pile)
     pthread_detach(tid_client);
 
     printf("initial end\n");
+
     return 0;
 }

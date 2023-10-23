@@ -220,13 +220,10 @@ typedef struct{
 
 //离线数据对象
 typedef struct{
-	bool IsCreate;                            //是否已经创建线程
-    char Status[16];
-	char StartUniqueID[37];
+	char StartUniqueID[40];
     bool StartResponse;
-    char StopUniqueID[37];
+    char StopUniqueID[40];
     bool StopResponse;
-	bool IsRetransmission;
 	int  TransactionID;
 }ocpp_chargePoint_offlineDate_t;
 
@@ -326,7 +323,7 @@ typedef struct{
     
     float (*getCurrentMeterValues)(int connector);               //获取当前电表值
 
-    void (*startCharging)(int connector ,int type);               //OCPP启动充电 ,type 0 刷卡启动，1远程启动
+    void (*startCharging)(int connector ,int type);               //OCPP启动充电 ,type 0 刷卡启动，1远程启动,2离线启动
 
     void (*userPushStartButton)(char * idTag, int connector);                                             //用户点击启动充电
     void (*userPushStopButton)(char * idTag, int connector, enum OCPP_PACKAGE_STOP_REASON_E  reason);     //用户点击停止充电    
@@ -345,9 +342,10 @@ bool ocpp_chargePoint_getConnectStatus();//获取OCPP连接状态，true-在线�
 bool ocpp_chargePoint_setConnectStatus(bool Status);//设置OCPP连接姿态，true-在线，false-不在线，网络断开需要设置为不在线
 int  ocpp_chargePoint_init(ocpp_chargePoint_t * pile);
 
-enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E ocpp_chargePoint_authorizationOfIdentifier(const char * const idTag, char * uniqueId);
 void ocpp_chargePoint_Authorization_IdTag(int connector, const char * idTag);//发送卡号进行认证，平台，本地列表，本地缓存，可关闭
-
+//发送StartTransaction，StopTransaction
+int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *UniqueId,char *timestamp,int metervalue);
+int ocpp_transaction_sendStopTransaction(int connector, const char *idTag, int transactionId, const char *UniqueId,int meterStop, char *timestamp,enum OCPP_PACKAGE_STOP_REASON_E reason);
 
 
 

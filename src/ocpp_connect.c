@@ -16,7 +16,6 @@ typedef struct
 	ocpp_connect_t *connect;
 	size_t sendDataLen;						 // 发送数据大小
 	char sendbuff[OCPP_CONNECT_SEND_BUFFER]; // 发送存储区
-	pthread_mutex_t mutex;
 } ocpp_connect_session_data_t;
 
 static ocpp_connect_session_data_t session_data;
@@ -102,37 +101,41 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 
 	case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
 		lwsl_err("CONNECTION ERROR: %s\n", (char *)in);
-		pthread_mutex_lock(&session_data.mutex);
+		write_data_lock();
 		session_data.connect->isConnect = false;
-		pthread_mutex_unlock(&session_data.mutex);
-		lws_close_reason(wsi, LWS_CLOSE_STATUS_GOINGAWAY, NULL, 0);
-		return -1;
+		rwlock_unlock();
+	    sleep(SERVER_RECONNECT_INTERVAL);
+		wsi = lws_client_connect_via_info(&ccinfo); // 重新创建WebSocket客户端对象，并尝试连接服务器
+		if (wsi == NULL)
+		{
+			return -1;
+		}
 		break;
 
 	case LWS_CALLBACK_CLIENT_ESTABLISHED:
 		lwsl_notice("CONNECTION ESTABLISHED\n");
-		pthread_mutex_lock(&session_data.mutex);
+		write_data_lock();
 		session_data.connect->isConnect = true;
-		pthread_mutex_unlock(&session_data.mutex);
+		rwlock_unlock();
 		lws_set_timer_usecs(wsi, 5000000);
 		lws_callback_on_writable(wsi);
 		break;
 
 	case LWS_CALLBACK_CLIENT_CLOSED:
 		lwsl_notice("CONNECTION CLOSED\n");
-		pthread_mutex_lock(&session_data.mutex);
+		write_data_lock();
 		session_data.connect->isConnect = false;
-		pthread_mutex_unlock(&session_data.mutex);
+		rwlock_unlock();
+		sleep(SERVER_RECONNECT_INTERVAL);
 		wsi = lws_client_connect_via_info(&ccinfo); // 重新创建WebSocket客户端对象，并尝试连接服务器
 		if (wsi == NULL)
 		{
 			return -1;
 		}
-		sleep(SERVER_RECONNECT_INTERVAL);
 		break;
 
 	case LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER:
-	{
+
 		lwsl_notice("start Authorization\n");
 		char *username = session_data.connect->username;
 		char *password = session_data.connect->password;
@@ -153,16 +156,16 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 		free(user_pwd);
 		free(basic);
 		lwsl_notice("start Authorization end\n");
-	}
-	break;
+
+		break;
 
 	case LWS_CALLBACK_TIMER:
 		if (send_ping(wsi) == -1)
 		{
 			lwsl_notice("检测到与服务器断开\n");
-			pthread_mutex_lock(&session_data.mutex);
+			write_data_lock();
 			session_data.connect->isConnect = false;
-			pthread_mutex_unlock(&session_data.mutex);
+			rwlock_unlock();
 		}
 		if (session_data.connect->isConnect == false)
 		{
@@ -172,13 +175,13 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 		lws_set_timer_usecs(wsi, 5000000);
 		break;
 	case LWS_CALLBACK_CLIENT_WRITEABLE:
-		pthread_mutex_lock(&session_data.mutex);
+		read_data_lock();
 		if (session_data.sendDataLen > 0)
 		{
 			ocpp_connect_websocket_send_back(wsi, session_data.sendbuff, session_data.sendDataLen);
 			session_data.sendDataLen = 0;
 		}
-		pthread_mutex_unlock(&session_data.mutex);
+		rwlock_unlock();
 		break;
 
 	case LWS_CALLBACK_CLIENT_RECEIVE:
@@ -238,10 +241,10 @@ static void ocpp_connect_initialize_websocket_context(struct lws_context_creatio
  */
 static void ocpp_connect_send(const char *const message, size_t len)
 {
-	pthread_mutex_lock(&session_data.mutex);
+	write_data_lock();
 	strncpy(session_data.sendbuff, message, OCPP_CONNECT_SEND_BUFFER);
 	session_data.sendDataLen = len;
-	pthread_mutex_unlock(&session_data.mutex);
+	rwlock_unlock();
 	return;
 }
 
@@ -307,7 +310,6 @@ void ocpp_connect_init(ocpp_connect_t *const connect)
 	printf("连接初始化");
 	connect->send = ocpp_connect_send;
 	connect->isConnect = false; // default no connect server
-	pthread_mutex_init(&session_data.mutex, NULL);
 	// 初始化缓存区
 	memset(session_data.sendbuff, 0, OCPP_CONNECT_SEND_BUFFER);
 	session_data.sendDataLen = 0;

@@ -20,31 +20,31 @@ void *ocpp_chargePoint_diagnostics_upload_thread(void *arg)
     {
         if (retries >= diagnostics->retries)
         {
-             
+            write_data_lock();
             ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOAD_FAILED;
-             
+            rwlock_unlock();
             ocpp_chargePoint_sendDiagnosticsStatusNotification_Req(OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOAD_FAILED);
             break;
         }
         ocpp_chargePoint_sendDiagnosticsStatusNotification_Req(OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADING);
-        if (upload_file(diagnostics->location, OCPP_DIAGNOSTICS_UPDATA_FILEPATH) == 0)
+        if (ocpp_upload_file(diagnostics->location, OCPP_DIAGNOSTICS_UPDATA_FILEPATH,CURL_FTP_mode) == 0)
         {
-             
+            write_data_lock();
             ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADED;
-              
+            rwlock_unlock();
             ocpp_chargePoint_sendDiagnosticsStatusNotification_Req(OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADED);
             break;
         }
-         
+        write_data_lock();
         ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOAD_FAILED;
-         
+        rwlock_unlock();
         ocpp_chargePoint_sendDiagnosticsStatusNotification_Req(OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOAD_FAILED);
         retries++;
         sleep(diagnostics->retryInterval);
     }
-     
+    write_data_lock();
     ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_IDLE;
-      
+    rwlock_unlock();
     free(diagnostics);
     return NULL;
 }

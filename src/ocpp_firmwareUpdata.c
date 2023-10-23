@@ -14,135 +14,6 @@
 #include "ocpp_chargePoint.h"
 #include "ocpp_auxiliaryTool.h"
 extern ocpp_chargePoint_t *ocpp_chargePoint;
-// 通用文件下载函数，支持HTTP和FTP
-int download_file(const char *url, const char *local_file_path)
-{
-	if (url == NULL || local_file_path == NULL)
-	{
-		fprintf(stderr, "错误:URL和本地文件路径不能为空。\n");
-		return -1; // 返回错误代码，表示参数无效
-	}
-
-	CURL *curl;
-	FILE *file;
-
-	curl_global_init(CURL_GLOBAL_ALL);
-	curl = curl_easy_init();
-
-	if (curl)
-	{
-		curl_easy_setopt(curl, CURLOPT_URL, url);
-
-		file = fopen(local_file_path, "wb");
-		if (file)
-		{
-			curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
-			CURLcode res = curl_easy_perform(curl);
-			fclose(file);
-
-			if (res == CURLE_OK)
-			{
-				printf("文件下载完成.\n");
-			}
-			else
-			{
-				fprintf(stderr, "下载失败: %s\n", curl_easy_strerror(res));
-				return -1;
-			}
-		}
-		else
-		{
-			fprintf(stderr, "无法打开文件进行写入\n");
-			return -1;
-		}
-
-		curl_easy_cleanup(curl);
-	}
-	else
-	{
-		fprintf(stderr, "初始化libcurl失败\n");
-		return -1;
-	}
-
-	curl_global_cleanup();
-	return 0;
-}
-
-int upload_file(const char *url, const char *local_file_path)
-{
-	if (url == NULL || local_file_path == NULL)
-	{
-		fprintf(stderr, "错误:URL和路径不能为空。\n");
-		return -1;
-	}
-
-	CURL *curl = curl_easy_init();
-	if (curl == NULL)
-	{
-		fprintf(stderr, "错误:初始化libcurl失败。\n");
-		return -1;
-	}
-
-	curl_easy_setopt(curl, CURLOPT_URL, url);
-
-	FILE *file = fopen(local_file_path, "rb");
-	if (file == NULL)
-	{
-		fprintf(stderr, "错误：打开本地文件失败。\n");
-		curl_easy_cleanup(curl);
-		return -1;
-	}
-
-	struct curl_slist *headers = NULL;
-	headers = curl_slist_append(headers, "Content-Type: application/octet-stream");
-	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-	long size = 0; // 文件大小
-
-	// 根据URL协议选择上传方式
-	if (strncmp(url, "ftp://", 6) == 0) // FTP上传
-	{
-		curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L); // 启用上传模式
-		curl_easy_setopt(curl, CURLOPT_READDATA, file);
-	}
-	else if (strncmp(url, "http://", 7) == 0 || strncmp(url, "https://", 8) == 0) // HTTP(S)上传
-	{
-		fseek(file, 0, SEEK_END);
-		size = ftell(file);
-		fseek(file, 0, SEEK_SET);
-
-		// 设置HTTP请求方法为POST
-		curl_easy_setopt(curl, CURLOPT_POST, 1L);
-
-		// 设置HTTP请求体为本地文件内容
-		curl_easy_setopt(curl, CURLOPT_READDATA, file);
-		curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)size);
-	}
-	else
-	{
-		fprintf(stderr, "错误：不支持的协议。\n");
-		fclose(file);
-		curl_easy_cleanup(curl);
-		return -1;
-	}
-
-	CURLcode res = curl_easy_perform(curl);
-
-	curl_slist_free_all(headers);
-	fclose(file);
-	curl_easy_cleanup(curl);
-
-	if (res == CURLE_OK)
-	{
-		printf("文件上传完成。\n");
-		return 0;
-	}
-	else
-	{
-		fprintf(stderr, "上传失败: %s\n", curl_easy_strerror(res));
-		return -1;
-	}
-}
 /**
  * @description: 固件更新线程
  * @param
@@ -171,25 +42,32 @@ void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
 		{
 			break;
 		}
+		write_data_lock();
 		ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING;
+		rwlock_unlock();
 		ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING);
-		if (download_file(UpdateFirmware->location, OCPP_FIRMWARE_UPDATA_FILEPATH) == 0)
+		usleep(MAX_TIMEOUT_SECONDS * 1000 * 1000);
+		if (ocpp_download_file(UpdateFirmware->location, OCPP_FIRMWARE_UPDATA_FILEPATH, CURL_FTP_mode) == 0)
 		{
 			downloadstatus = true;
-
+			write_data_lock();
 			ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADED;
-
+			rwlock_unlock();
 			ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADED);
+			usleep(MAX_TIMEOUT_SECONDS * 1000 * 1000);
 			break;
 		}
 		else
 		{
-
+			write_data_lock();
 			ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED;
+			rwlock_unlock();
 			ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED);
+			usleep(MAX_TIMEOUT_SECONDS * 1000 * 1000);
+			retries++;
+			continue;
 		}
-		retries++;
-		usleep(UpdateFirmware->retryInterval * 1000 * 1000);
+		sleep(UpdateFirmware->retryInterval);
 	}
 
 	if (downloadstatus)
@@ -205,29 +83,23 @@ void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
 		while (!allChargersStopped)
 		{
 			allChargersStopped = 1; // 假设所有枪都已停止充电
-
+			read_data_lock();
 			for (int connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
 			{
 				if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
 				{
-					// 查询充电状态
-					if (isChargingStopped(ocpp_chargePoint->transaction_obj[connector]))
-					{
-						ocpp_chargePoint->transaction_obj[connector]->isTransaction = 0; // 设置为充电已停止
-					}
-					else
-					{
-						allChargersStopped = 0; // 有枪还在充电，将标志设置为 0
-					}
+
+					allChargersStopped = 0; // 有枪还在充电，将标志设置为 0
 				}
 			}
-
+			rwlock_unlock();
 			if (!allChargersStopped)
 			{
-				sleep(5); // 休眠 5 秒（你可以根据需求调整等待时间）
+				sleep(5); // 休眠 5 秒（根据需求调整等待时间）
 			}
 		}
 		ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_INSTALLING);
+		usleep(MAX_TIMEOUT_SECONDS * 1000 * 1000);
 		system("reboot");
 	}
 
@@ -235,28 +107,8 @@ void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
 	{
 		free(UpdateFirmware);
 	}
-
-	ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState == OCPP_PACKAGE_FIRMWARE_STATUS_IDLE;
-
+	write_data_lock();
+	ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_IDLE;
+	rwlock_unlock();
 	return NULL;
 }
-
-// test
-//  int main()
-//  {
-//  	const char *url = "http://10.100.70.120/EVCM-SD10.tar.gz"; // HTTP URL
-//  	const char *save_path = "/app/core/EVCM-SD10.tar.gz";	   // 本地保存路径
-
-// 	int result = download_file(url, save_path);
-
-// 	if (result == 0)
-// 	{
-// 		printf("文件下载成功！\n");
-// 	}
-// 	else
-// 	{
-// 		printf("文件下载失败。\n");
-// 	}
-
-// 	return 0;
-// }

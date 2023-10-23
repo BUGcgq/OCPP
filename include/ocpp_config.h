@@ -20,6 +20,7 @@ extern "C" {
 #define MAX_TIMEOUT_SECONDS                                        4                              //判断回复信息超时的时间
 #define SERVER_RECONNECT_INTERVAL                                  5                              // 断线重连间隔，单位为秒
 #define MAX_TIMEOUT_COUNT                                          4                              //最大允许超时次数
+#define CURL_FTP_mode                                              0                             //FTP上传和下载的模式，0是主动，1是被动
 #ifdef __cplusplus
 }
 #endif

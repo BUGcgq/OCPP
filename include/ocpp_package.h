@@ -1300,16 +1300,14 @@ typedef struct {
 
 
 void ocpp_package_prepare_Status_Req(char *UniqueId, int status);
-//发送MeterValues，StartTransaction，StopTransaction_Simpleness
 int ocpp_chargePoint_sendMeterValues(int connector, int transactionId);
-int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *UniqueId,char *timestamp,int metervalue);
-int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *idTag, int transactionId, const char *UniqueId,int meterStop, char *timestamp,enum OCPP_PACKAGE_STOP_REASON_E reason);
 //发送Heartbeat，BootNotification，StatusNotification
 int ocpp_chargePoint_sendHeartbeat_Req();
 int ocpp_chargePoint_sendBootNotification_req();
 int ocpp_chargePoint_sendStatusNotification_Req(int connector);
 //身份认证
 int ocpp_chargePoint_sendAuthorize_req(const char *const idTag, char *lastUniqueId);
+enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E ocpp_chargePoint_authorizationOfIdentifier(const char * const idTag, char * uniqueId);
 int ocpp_chargePoint_sendDiagnosticsStatusNotification_Req(int status);
 //远程升级
 int ocpp_chargePoint_sendFirmwareStatusNotification_Req(int status);

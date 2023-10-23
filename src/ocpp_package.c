@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include "ocpp_package.h"
 #include <json-c/json.h>
-#include "ocpp_order.h"
 #include "ocpp_chargePoint.h"
 #include "ocpp_configurationKey.h"
 #include "ocpp_auxiliaryTool.h"
@@ -38,6 +37,61 @@ int ocpp_chargePoint_sendAuthorize_req(const char *const idTag, char *lastUnique
     json_object_put(root_object);
 
     return 0;
+}
+/**
+ * @description:
+ * @param {int} connector:0 indicate pile, 1 indicate connector0, 2 indicate connector1
+ * @param {char *} idTag
+ * @return {*}
+ */
+void ocpp_chargePoint_Authorization_IdTag(int connector, const char *idTag)
+{
+
+    if (connector < 0 || connector > ocpp_chargePoint->numberOfConnector)
+    {
+        ocpp_chargePoint->setAuthorizeResult(connector, false);
+        return;
+    }
+
+    enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E result;
+
+    char *unique = ocpp_AuxiliaryTool_GenerateUUID();
+    result = ocpp_chargePoint_authorizationOfIdentifier(idTag, unique);
+
+    if (unique != NULL)
+    {
+        strncpy(ocpp_chargePoint->authorizetion[connector]->lastUniqueId, unique, 40);
+        free(unique);
+    }
+    ocpp_chargePoint->authorizetion[connector]->result = result;
+    ocpp_chargePoint->authorizetion[connector]->isWaitAuthoriza = false;
+
+    bool AllowOfflineTxForUnknownId = false;
+    ocpp_ConfigurationKey_getValue(ocpp_configurationKeyText[OCPP_CK_AllowOfflineTxForUnknownId], (void *)&AllowOfflineTxForUnknownId);
+
+    switch (result)
+    {
+    case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_FAIL:
+        ocpp_chargePoint->setAuthorizeResult(connector, false);
+        break;
+
+    case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_ONGOING:
+        ocpp_chargePoint->authorizetion[connector]->isWaitAuthoriza = true;
+        strncpy(ocpp_chargePoint->authorizetion[connector]->idTag, idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
+        break;
+
+    case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_UNKOWN:
+        if (AllowOfflineTxForUnknownId)
+            ocpp_chargePoint->setAuthorizeResult(connector, true);
+        else
+            ocpp_chargePoint->setAuthorizeResult(connector, false);
+        break;
+
+    case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_SUCCEED:
+        printf("授权成功\n");
+        ocpp_chargePoint->setAuthorizeResult(connector, true);
+        break;
+    }
 }
 
 /**
@@ -627,7 +681,7 @@ int ocpp_chargePoint_sendStatusNotification_Req(int connector)
  * @param:
  * @return:
  */
-int ocpp_transaction_sendStopTransaction_Simpleness(int connector, const char *idTag, int transactionId, const char *UniqueId, int meterStop, char *timestamp, enum OCPP_PACKAGE_STOP_REASON_E reason)
+int ocpp_transaction_sendStopTransaction(int connector, const char *idTag, int transactionId, const char *UniqueId, int meterStop, char *timestamp, enum OCPP_PACKAGE_STOP_REASON_E reason)
 {
 
     const char *transactionDataStr = NULL;
