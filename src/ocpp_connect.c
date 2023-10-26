@@ -130,6 +130,7 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 		write_data_lock();
 		session_data.connect->isConnect = true;
 		rwlock_unlock();
+		lws_set_timer_usecs(wsi, 5000000);
 		lws_callback_on_writable(wsi);
 		break;
 
