@@ -179,6 +179,7 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 			lws_close_reason(wsi, LWS_CLOSE_STATUS_GOINGAWAY, NULL, 0);
 			return -1;
 		}
+		lws_set_timer_usecs(wsi, 5000000);
 		lws_callback_on_writable(wsi);
 		break;
 	case LWS_CALLBACK_CLIENT_WRITEABLE:
