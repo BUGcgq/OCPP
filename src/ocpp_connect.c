@@ -8,7 +8,7 @@
 #include "ocpp_config.h"
 #include "ocpp_auxiliaryTool.h"
 
-static struct lws_client_connect_info ccinfo;
+
 #define OCPP_CONNECT_SEND_BUFFER 2048 // 发送缓存区大小
 // 每个使用这个协议的新连接在建立连接时都会分配这么多内存，在断开连接时会释放这么多内存。指向此按连接分配的指针被传递到user参数中的回调中
 typedef struct
@@ -84,7 +84,25 @@ int send_ping(struct lws *wsi)
 		return 0;
 	}
 }
-
+// 定义一个定时器结构体
+static lws_sorted_usec_list_t sul;
+struct lws *wsi = NULL;
+struct lws_context *context = NULL;
+struct lws_client_connect_info ccinfo;
+// 定义一个定时器回调函数
+static void sul_cb(lws_sorted_usec_list_t *sul)
+{
+	// 使用lws_client_connect_via_info函数来重新创建一个客户端连接，并且保存返回的wsi变量
+	wsi = lws_client_connect_via_info(&ccinfo);
+	if (wsi == NULL)
+	{
+		lwsl_err("Failed to reconnect to server\n");
+	}
+	else
+	{
+		lwsl_info("Reconnected to server\n");
+	}
+}
 /**
  * @description: 回调函数
  * @param:
@@ -104,12 +122,7 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 		write_data_lock();
 		session_data.connect->isConnect = false;
 		rwlock_unlock();
-	    sleep(SERVER_RECONNECT_INTERVAL);
-		wsi = lws_client_connect_via_info(&ccinfo); // 重新创建WebSocket客户端对象，并尝试连接服务器
-		if (wsi == NULL)
-		{
-			return -1;
-		}
+		lws_sul_schedule(context, 0, &sul, sul_cb, SERVER_RECONNECT_INTERVAL * 1000 * LWS_US_PER_MS); // 安排一个定时器，在1
 		break;
 
 	case LWS_CALLBACK_CLIENT_ESTABLISHED:
@@ -126,12 +139,7 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 		write_data_lock();
 		session_data.connect->isConnect = false;
 		rwlock_unlock();
-		sleep(SERVER_RECONNECT_INTERVAL);
-		wsi = lws_client_connect_via_info(&ccinfo); // 重新创建WebSocket客户端对象，并尝试连接服务器
-		if (wsi == NULL)
-		{
-			return -1;
-		}
+		lws_sul_schedule(context, 0, &sul, sul_cb, SERVER_RECONNECT_INTERVAL * 1000 * LWS_US_PER_MS); // 安排一个定时器，在1
 		break;
 
 	case LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER:
@@ -255,10 +263,8 @@ static void ocpp_connect_send(const char *const message, size_t len)
  */
 static void *ocpp_connect_websocket(ocpp_connect_t *const connect)
 {
-	struct lws_context *context = NULL;
 	struct lws_protocols protocol;
 	struct lws_context_creation_info info;
-	struct lws *wsi = NULL;
 	ocpp_connect_initialize_websocket_context(&info, &protocol, connect);
 	context = lws_create_context(&info);
 	if (context == NULL)
@@ -268,7 +274,18 @@ static void *ocpp_connect_websocket(ocpp_connect_t *const connect)
 	}
 
 	lwsl_notice("初始化上下文成功\n"); // 只创建一次上下文，之后的重连都是根据这一次的来，如果多次创建上下文会导致文件描述符的增加，即使调用lws_context_destroy(context);也不能释放，导致设备重启
-	// 只创建一次上下文，只输入一次域名，如果域名对应的IP变了，重连是否还能连接上？
+									   // 只创建一次上下文，只输入一次域名，如果域名对应的IP变了，重连是否还能连接上？
+									   // 定义一个整数数组，表示第几次重连时的基础延迟时间，单位是毫秒
+	static const uint32_t retry_ms_table[] = {1000, 2000, 4000, 8000};
+
+	// 定义一个lws_retry_bo_t结构体，用来设置重连的策略
+	static const lws_retry_bo_t retry = {
+		.retry_ms_table = retry_ms_table,						// 指向整数数组的指针
+		.retry_ms_table_count = LWS_ARRAY_SIZE(retry_ms_table), // 数组中有多少个元素
+		.conceal_count = 4,										// 最多可以隐藏4次重连
+		.jitter_percent = 10,									// 在基础延迟时间的基础上增加10%的随机抖动
+	};
+
 	ccinfo.context = context;
 	ccinfo.port = connect->port;
 	ccinfo.address = connect->address;
@@ -279,6 +296,7 @@ static void *ocpp_connect_websocket(ocpp_connect_t *const connect)
 	ccinfo.ietf_version_or_minus_one = -1;
 	ccinfo.client_exts = NULL;
 	ccinfo.protocol = protocol.name;
+	ccinfo.retry_and_idle_policy = &retry;
 	while (1)
 	{
 		wsi = lws_client_connect_via_info(&ccinfo);
