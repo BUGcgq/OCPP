@@ -1304,17 +1304,18 @@ void ocpp_chargePoint_manageRemoteStartTransaction_Req(const char *uniqueId, ocp
     {
         return;
     }
-
     ocpp_package_RemoteStartTransaction_conf_t remoteStartTransaction_conf;
     memset(&remoteStartTransaction_conf, 0, sizeof(remoteStartTransaction_conf));
     ocpp_chargePoint_transaction_t *transaction = ocpp_chargePoint->transaction_obj[remoteStartTransaction_req.connectorId];
     remoteStartTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_REJECTED;
     if ((transaction->isStart == false && transaction->isTransaction == false && ocpp_chargePoint->connector[remoteStartTransaction_req.connectorId]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_PREPARING))
     {
+        write_data_lock();
         memset(transaction, 0, sizeof(ocpp_chargePoint_transaction_t));
         strncpy(transaction->startIdTag, remoteStartTransaction_req.idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
         transaction->isStart = true;
         transaction->startupType = 1;
+        rwlock_unlock();
         remoteStartTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_ACCEPTED;
     }
     else

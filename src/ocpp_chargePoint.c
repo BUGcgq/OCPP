@@ -196,7 +196,9 @@ static void *ocpp_chargePoint_Transaction_thread(void *arg)
 {
     int connector = (int)arg;
     ocpp_chargePoint_transaction_t *item = ocpp_chargePoint->transaction_obj[connector];
+    write_data_lock();
     item->isTransaction = true;
+    rwlock_unlock();
     int meterValueSampleInterval = 0;
     ocpp_ConfigurationKey_getValue(ocpp_configurationKeyText[OCPP_CK_MeterValueSampleInterval], (void *)&meterValueSampleInterval);
     if (meterValueSampleInterval < 10)
@@ -3840,21 +3842,21 @@ void *ocpp_chargePoint_client(void *arg)
         }
         // 版本二
         read_data_lock();
-        for (connector = 1; connector < ocpp_chargePoint->numberOfConnector; connector++)
+        for (connector = 0; connector < ocpp_chargePoint->numberOfConnector; connector++)
         {
             if (ocpp_chargePoint->connector[0]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_AVAILABLE)
             {
-                if (!ocpp_chargePoint->transaction_obj[connector]->isTransaction && ocpp_chargePoint->transaction_obj[connector]->isStart)
+                if (!ocpp_chargePoint->transaction_obj[connector+1]->isTransaction && ocpp_chargePoint->transaction_obj[connector+1]->isStart)
                 {
                     bool isAllowTransaction = false;
-                    if (ocpp_chargePoint->connector[connector]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_PREPARING)
+                    if (ocpp_chargePoint->connector[connector+1]->status == OCPP_PACKAGE_CHARGEPOINT_STATUS_PREPARING)
                     {
                         isAllowTransaction = true;
                     }
                     if (isAllowTransaction)
                     {
                         pthread_t tid_transaction;
-                        if (pthread_create(&tid_transaction, NULL, ocpp_chargePoint_Transaction_thread, (void *)connector) == -1)
+                        if (pthread_create(&tid_transaction, NULL, ocpp_chargePoint_Transaction_thread, (void *)(connector+1)) == -1)
                         {
                             printf("create transaction thread fail\n");
                         }

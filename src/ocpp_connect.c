@@ -86,15 +86,15 @@ int send_ping(struct lws *wsi)
 }
 // 定义一个定时器结构体
 static lws_sorted_usec_list_t sul;
-struct lws *wsi = NULL;
+struct lws *cwsi = NULL;
 struct lws_context *context = NULL;
 struct lws_client_connect_info ccinfo;
 // 定义一个定时器回调函数
 static void sul_cb(lws_sorted_usec_list_t *sul)
 {
 	// 使用lws_client_connect_via_info函数来重新创建一个客户端连接，并且保存返回的wsi变量
-	wsi = lws_client_connect_via_info(&ccinfo);
-	if (wsi == NULL)
+	cwsi = lws_client_connect_via_info(&ccinfo);
+	if (cwsi == NULL)
 	{
 		lwsl_err("Failed to reconnect to server\n");
 	}
@@ -130,7 +130,6 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 		write_data_lock();
 		session_data.connect->isConnect = true;
 		rwlock_unlock();
-		lws_set_timer_usecs(wsi, 5000000);
 		lws_callback_on_writable(wsi);
 		break;
 
@@ -180,7 +179,7 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 			lws_close_reason(wsi, LWS_CLOSE_STATUS_GOINGAWAY, NULL, 0);
 			return -1;
 		}
-		lws_set_timer_usecs(wsi, 5000000);
+		lws_callback_on_writable(wsi);
 		break;
 	case LWS_CALLBACK_CLIENT_WRITEABLE:
 		read_data_lock();
@@ -190,6 +189,7 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 			session_data.sendDataLen = 0;
 		}
 		rwlock_unlock();
+		lws_callback_on_writable(wsi);
 		break;
 
 	case LWS_CALLBACK_CLIENT_RECEIVE:
@@ -299,8 +299,8 @@ static void *ocpp_connect_websocket(ocpp_connect_t *const connect)
 	ccinfo.retry_and_idle_policy = &retry;
 	while (1)
 	{
-		wsi = lws_client_connect_via_info(&ccinfo);
-		if (wsi != NULL)
+		cwsi = lws_client_connect_via_info(&ccinfo);
+		if (cwsi != NULL)
 		{
 			break;
 		}
