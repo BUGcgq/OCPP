@@ -15,6 +15,8 @@ void *ocpp_chargePoint_diagnostics_upload_thread(void *arg)
     ocpp_package_GetDiagnostics_req_t *diagnostics = (ocpp_package_GetDiagnostics_req_t *)arg;
 
     int retries = 0;
+    char url[512];  // 这里假设目标字符串足够大
+    snprintf(url, sizeof(url), "%s%s", diagnostics->location, OCPP_DIAGNOSTICS_UPDATA_FILENAME);
 
     while (1)
     {
@@ -27,7 +29,7 @@ void *ocpp_chargePoint_diagnostics_upload_thread(void *arg)
             break;
         }
         ocpp_chargePoint_sendDiagnosticsStatusNotification_Req(OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADING);
-        if (ocpp_upload_file(diagnostics->location, OCPP_DIAGNOSTICS_UPDATA_FILEPATH,CURL_FTP_mode) == 0)
+        if (ocpp_upload_file(url, OCPP_DIAGNOSTICS_UPDATA_FILEPATH,CURL_FTP_mode) == 0)
         {
             write_data_lock();
             ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOADED;

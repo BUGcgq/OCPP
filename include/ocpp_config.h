@@ -10,6 +10,7 @@ extern "C" {
 #define  OCPP_DATABASE_FILE_NAME                                 "/app/etc/ocpp.db"
 #define  OCPP_FIRMWARE_UPDATA_FILEPATH                           "/app/update/EVCM-SD10.tar.gz"               //下载文件路径
 #define  OCPP_DIAGNOSTICS_UPDATA_FILEPATH                        "/app/core/run_log.txt"                      //上传文件路径
+#define  OCPP_DIAGNOSTICS_UPDATA_FILENAME                        "run_log.txt"                      //上传文件路径
 
 #define OCPP_LOCAL_AUTHORIZATION_LIST_MAX                          1000                          //本地认证列表长度
 #define OCPP_CONNECT_SEND_BUFFER                                   2048                          // 发送缓存区大小

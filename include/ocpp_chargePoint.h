@@ -218,15 +218,6 @@ typedef struct{
 
 }ocpp_chargePoint_transaction_t;
 
-//离线数据对象
-typedef struct{
-	char StartUniqueID[40];
-    bool StartResponse;
-    char StopUniqueID[40];
-    bool StopResponse;
-	int  TransactionID;
-}ocpp_chargePoint_offlineDate_t;
-
 typedef struct{
 	int connectorId;
 	enum OCPP_PACKAGE_CHARGEPOINT_ERRORCODE_E errorCode;
@@ -277,9 +268,6 @@ typedef struct{
     ocpp_chargePoint_transaction_t ** transaction_obj;
 
     ocpp_connect_t connect;
-	//离线对象
-	ocpp_chargePoint_offlineDate_t offlineDate_obj;
-
 
     //上报平台Boot Notification的信息回调，如果没有的字段返回false
     bool (*getChargeBoxSerialNumber)(char * const str, int len);
@@ -292,9 +280,13 @@ typedef struct{
     bool (*getMeterSerialNumber)(char * const str, int len);
     bool (*getMeterType)(char * const str, int len);
 
-
+    void (*sendAuthorization)(int connector, const char * idTag);
+    void (*sendStartTransaction)(int connector, const char *idTag, int reservationId, char *UniqueId,char *timestamp,int metervalue);//发送sendStartTransaction
+    void (*sendStopTransaction)(int connector, const char *idTag, int transactionId, const char *UniqueId,int meterStop, char *timestamp,enum OCPP_PACKAGE_STOP_REASON_E reason);
     //发送身份认证后会触发回调返回结果，connector枪，result - 0认证不通过，1-认证通过
-    void (*setAuthorizeResult)(int connector, int result);
+    void (*RecvAuthorizeResult)(int connector, int result);
+    void (*RecvStartTransactionResult)(int connector,int transactionId,const char * status,const char * expiryDate,const char *parentIdTag);
+    void (*RecvStopTransactionResult)(int connector,int transactionId,const char * status,const char * expiryDate,const char *parentIdTag); 
     //
     void (*getReservationStatus)(int connector, int status);
     //get MeterValues
@@ -330,22 +322,16 @@ typedef struct{
 
     void (*remoteStopCharging)(int connector);                                                            //远程停止充电
     void (*setChargingProfile)(int connector, int type, double limit);
+
+    bool (*getOcppStatus)(void);                                     //获取OCPP连接状态，true-在线，false-不在线
+    bool (*setOcppStatus)(bool Status);                          //设置OCPP连接姿态，true-在线，false-不在线，网络断开需要设置为不在线
 }ocpp_chargePoint_t;
-
-
-
 
 
 extern ocpp_chargePoint_t * ocpp_chargePoint;
 
-bool ocpp_chargePoint_getConnectStatus();//获取OCPP连接状态，true-在线，false-不在线
-bool ocpp_chargePoint_setConnectStatus(bool Status);//设置OCPP连接姿态，true-在线，false-不在线，网络断开需要设置为不在线
 int  ocpp_chargePoint_init(ocpp_chargePoint_t * pile);
 
-void ocpp_chargePoint_Authorization_IdTag(int connector, const char * idTag);//发送卡号进行认证，平台，本地列表，本地缓存，可关闭
-//发送StartTransaction，StopTransaction
-int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *UniqueId,char *timestamp,int metervalue);
-int ocpp_transaction_sendStopTransaction(int connector, const char *idTag, int transactionId, const char *UniqueId,int meterStop, char *timestamp,enum OCPP_PACKAGE_STOP_REASON_E reason);
 
 
 

@@ -49,7 +49,7 @@ void ocpp_chargePoint_Authorization_IdTag(int connector, const char *idTag)
 
     if (connector < 0 || connector > ocpp_chargePoint->numberOfConnector)
     {
-        ocpp_chargePoint->setAuthorizeResult(connector, false);
+        ocpp_chargePoint->RecvAuthorizeResult(connector, false);
         return;
     }
 
@@ -72,7 +72,7 @@ void ocpp_chargePoint_Authorization_IdTag(int connector, const char *idTag)
     switch (result)
     {
     case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_FAIL:
-        ocpp_chargePoint->setAuthorizeResult(connector, false);
+        ocpp_chargePoint->RecvAuthorizeResult(connector, false);
         break;
 
     case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_ONGOING:
@@ -82,14 +82,14 @@ void ocpp_chargePoint_Authorization_IdTag(int connector, const char *idTag)
 
     case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_UNKOWN:
         if (AllowOfflineTxForUnknownId)
-            ocpp_chargePoint->setAuthorizeResult(connector, true);
+            ocpp_chargePoint->RecvAuthorizeResult(connector, true);
         else
-            ocpp_chargePoint->setAuthorizeResult(connector, false);
+            ocpp_chargePoint->RecvAuthorizeResult(connector, false);
         break;
 
     case OCPP_CHARGEPOINT_AUTHORIZE_RESULT_SUCCEED:
         printf("授权成功\n");
-        ocpp_chargePoint->setAuthorizeResult(connector, true);
+        ocpp_chargePoint->RecvAuthorizeResult(connector, true);
         break;
     }
 }
@@ -600,12 +600,12 @@ int ocpp_chargePoint_sendMeterValues(int connector, int transactionId)
  * @param:
  * @return:
  */
-int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *UniqueId, char *timestamp, int metervalue)
+void ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *UniqueId, char *timestamp, int metervalue)
 {
     struct json_object *root_object = json_object_new_array();
     if (root_object == NULL || UniqueId == NULL || timestamp == NULL)
     {
-        return -1;
+        return ;
     }
 
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
@@ -626,7 +626,7 @@ int ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int 
 
     free(root_object);
 
-    return 0;
+    return ;
 }
 
 /**
@@ -681,14 +681,14 @@ int ocpp_chargePoint_sendStatusNotification_Req(int connector)
  * @param:
  * @return:
  */
-int ocpp_transaction_sendStopTransaction(int connector, const char *idTag, int transactionId, const char *UniqueId, int meterStop, char *timestamp, enum OCPP_PACKAGE_STOP_REASON_E reason)
+void ocpp_transaction_sendStopTransaction(int connector, const char *idTag, int transactionId, const char *UniqueId, int meterStop, char *timestamp, enum OCPP_PACKAGE_STOP_REASON_E reason)
 {
 
     const char *transactionDataStr = NULL;
     struct json_object *root_object = json_object_new_array();
     if (root_object == NULL || UniqueId == NULL || timestamp == NULL)
     {
-        return -1;
+        return ;
     }
     json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_MESSAGE));
     json_object_array_add(root_object, json_object_new_string(UniqueId));
@@ -954,7 +954,7 @@ int ocpp_transaction_sendStopTransaction(int connector, const char *idTag, int t
     enqueueSendMessage(UniqueId, json_string, OCPP_PACKAGE_STOPTRANSACTION);
     json_object_put(root_object);
 
-    return 0;
+    return ;
 }
 /**
  * @description:

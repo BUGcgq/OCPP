@@ -1298,9 +1298,12 @@ typedef struct {
 } ocpp_package_CallError_t;
 
 
-
+void ocpp_chargePoint_Authorization_IdTag(int connector, const char * idTag);//发送卡号进行认证，平台，本地列表，本地缓存，可关闭
 void ocpp_package_prepare_Status_Req(char *UniqueId, int status);
 int ocpp_chargePoint_sendMeterValues(int connector, int transactionId);
+//发送StartTransaction，StopTransaction
+void ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *UniqueId,char *timestamp,int metervalue);
+void ocpp_transaction_sendStopTransaction(int connector, const char *idTag, int transactionId, const char *UniqueId,int meterStop, char *timestamp,enum OCPP_PACKAGE_STOP_REASON_E reason);
 //发送Heartbeat，BootNotification，StatusNotification
 int ocpp_chargePoint_sendHeartbeat_Req();
 int ocpp_chargePoint_sendBootNotification_req();
