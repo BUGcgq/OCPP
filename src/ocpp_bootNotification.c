@@ -1,4 +1,6 @@
+#include <time.h>
 #include "ocpp_chargePoint.h"
+#include "ocpp_package.h"
 #include "ocpp_bootNotification.h"
 #include "ocpp_configurationKey.h"
 #include "ocpp_chargingProfile.h"

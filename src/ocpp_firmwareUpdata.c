@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <netdb.h>
 #include <stdbool.h>
+#include <time.h>
 #include "ocpp_package.h"
 #include "ocpp_firmwareUpdata.h"
 #include "ocpp_chargePoint.h"

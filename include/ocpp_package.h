@@ -7,7 +7,7 @@ extern "C" {
 
 #include "ocpp_localAuthorization.h"
 #include "ocpp_chargePoint.h"
-
+#include "ocpp_chargingProfile.h"
 
 enum OCPP_PACKAGE{
 	OCPP_PACKAGE_NONE = 0,
@@ -1310,8 +1310,8 @@ int ocpp_chargePoint_sendBootNotification_req();
 int ocpp_chargePoint_sendStatusNotification_Req(int connector);
 //身份认证
 int ocpp_chargePoint_sendAuthorize_req(const char *const idTag, char *lastUniqueId);
-enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E ocpp_chargePoint_authorizationOfIdentifier(const char * const idTag, char * uniqueId);
 int ocpp_chargePoint_sendDiagnosticsStatusNotification_Req(int status);
+int ocpp_chargePoint_sendGetDiagnostics_req(char *UniqueId, char *fileName, int status);
 //远程升级
 int ocpp_chargePoint_sendFirmwareStatusNotification_Req(int status);
 //获取配置
@@ -1337,6 +1337,9 @@ void ocpp_chargePoint_manageUnlockConnectorRequest(const char *uniqueId, ocpp_pa
 //
 void ocpp_chargePoint_manageResetRequest(const char *uniqueId, ocpp_package_Reset_req_t reset_req);
 //
+void ocpp_chargePoint_manageGetCompositeScheduleRequest(const char *uniqueId, ChargingProfile chargingProfile);
+
+void ocpp_chargePoint_manageRemoteStartTransactionRequest(const char *uniqueId, ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req);
 
 char * ocpp_package_prepare_CallError(const char *UniqueId, ocpp_package_CallError_t * callError);
 

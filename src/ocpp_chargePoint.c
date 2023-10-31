@@ -9,6 +9,7 @@
 #include "ocpp_auxiliaryTool.h"
 #include "ocpp_bootNotification.h"
 #include "ocpp_transaction.h"
+#include <time.h>
 
 ocpp_chargePoint_t *ocpp_chargePoint = NULL;
 
@@ -282,47 +283,6 @@ enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E ocpp_chargePoint_authorizationOfIdentif
 /**
  * @description:
  * @param {char *} uniqueId
- * @param {ocpp_package_RemoteStartTransaction_req_t} remoteStartTransaction_req
- * @return {*}
- */
-void ocpp_chargePoint_manageRemoteStartTransactionRequest(const char *uniqueId, ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req)
-{
-    struct json_object *root_object = json_object_new_array();
-    if (root_object == NULL)
-    {
-        return;
-    }
-
-    ocpp_package_RemoteStartTransaction_conf_t remoteStartTransaction_conf;
-    memset(&remoteStartTransaction_conf, 0, sizeof(remoteStartTransaction_conf));
-    ocpp_chargePoint_transaction_t *transaction = ocpp_chargePoint->transaction_obj[remoteStartTransaction_req.connectorId];
-    remoteStartTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_REJECTED;
-    if (transaction->isStart == false && transaction->isTransaction == false)
-    {
-        memset(transaction, 0, sizeof(ocpp_chargePoint_transaction_t));
-        strncpy(transaction->startIdTag, remoteStartTransaction_req.idTag, OCPP_AUTHORIZATION_IDTAG_LEN);
-        transaction->isStart = true;
-        remoteStartTransaction_conf.status = OCPP_PACKAGE_REMOTE_STRATSTOP_STATUS_ACCEPTED;
-    }
-    // response
-    json_object_array_add(root_object, json_object_new_int(OCPP_PACKAGE_CALL_RESULT));
-    json_object_array_add(root_object, json_object_new_string(uniqueId));
-
-    struct json_object *payload_object = json_object_new_object();
-    json_object_object_add(payload_object, "status", json_object_new_string(ocpp_package_RemoteStartStopStatus_text[remoteStartTransaction_conf.status]));
-
-    json_object_array_add(root_object, payload_object);
-
-    const char *json_string = json_object_to_json_string(root_object);
-
-    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
-
-    json_object_put(root_object);
-}
-
-/**
- * @description:
- * @param {char *} uniqueId
  * @param {ocpp_package_ClearChargingProfile_req_t} clearChargingProfile
  * @return {*}
  */
@@ -340,56 +300,6 @@ void ocpp_chargePoint_manageDataTransferRequest(const char *uniqueId, ocpp_packa
 {
 }
 
-/**
- * @description:
- * @param {char *} uniqueId
- * @param {ocpp_package_DataTransfer_req_t} dataTransfer
- * @return {*}
- */
-void ocpp_chargePoint_manageGetCompositeScheduleRequest(const char *uniqueId, ChargingProfile chargingProfile)
-{
-    if (uniqueId == NULL)
-    {
-        return;
-    }
-    // 创建一个 JSON 数组
-    struct json_object *root_array = json_object_new_array();
-
-    json_object_array_add(root_array, json_object_new_int(3));
-    json_object_array_add(root_array, json_object_new_string(uniqueId));
-
-    // 创建包含 "chargingSchedule" 的子对象
-    struct json_object *chargingSchedule_obj = json_object_new_object();
-    json_object_object_add(chargingSchedule_obj, "duration", json_object_new_int(chargingProfile.chargingSchedule.duration));
-    json_object_object_add(chargingSchedule_obj, "startSchedule", json_object_new_string(chargingProfile.chargingSchedule.startSchedule));
-    json_object_object_add(chargingSchedule_obj, "chargingRateUnit", json_object_new_string(chargingProfile.chargingSchedule.chargingRateUnit));
-
-    // 创建 "chargingSchedulePeriod" 数组
-    struct json_object *chargingSchedulePeriod_array = json_object_new_array();
-    int i;
-    // 添加 "chargingSchedulePeriod" 数组元素，按照你提供的顺序
-    for (i = 0; i < chargingProfile.chargingSchedule.numPeriods; i++)
-    {
-        struct json_object *period_obj = json_object_new_object();
-        json_object_object_add(period_obj, "startPeriod", json_object_new_int(chargingProfile.chargingSchedule.chargingSchedulePeriods[i].startPeriod));
-        json_object_object_add(period_obj, "limit", json_object_new_double(chargingProfile.chargingSchedule.chargingSchedulePeriods[i].limit));
-        json_object_object_add(period_obj, "numberPhases", json_object_new_int(chargingProfile.chargingSchedule.chargingSchedulePeriods[i].numberPhases));
-        json_object_array_add(chargingSchedulePeriod_array, period_obj);
-    }
-
-    // 添加 "chargingSchedulePeriod" 数组到 "chargingSchedule" 子对象
-    json_object_object_add(chargingSchedule_obj, "chargingSchedulePeriod", chargingSchedulePeriod_array);
-
-    // 添加 "chargingSchedule" 子对象到主数组
-    json_object_array_add(root_array, chargingSchedule_obj);
-
-    const char *json_string = json_object_to_json_string(root_array);
-
-    enqueueSendMessage(uniqueId, json_string, OCPP_PACKAGE_CALL);
-
-    // 释放 JSON 对象
-    json_object_put(root_array);
-}
 
 /**
  * @description:
@@ -2448,7 +2358,6 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
     {
         if (ocpp_chargePoint_checkGetDiagnostics_Callpackage(uniqueId_str, payload_obj))
             return;
-        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
         ocpp_package_GetDiagnostics_req_t getDiagnostics_req;
         memset(&getDiagnostics_req, 0, sizeof(getDiagnostics_req));
 
@@ -2496,11 +2405,11 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         if (DiagnosticsStatus == OCPP_PACKAGE_DIAGNOSTICS_STATUS_IDLE)
         {
             ocpp_chargePoint_manageGetDiagnosticsRequest(getDiagnostics_req);
-            ocpp_package_prepare_Status_Req(uniqueId_str, 0);
+            ocpp_chargePoint_sendGetDiagnostics_req(uniqueId_str,OCPP_DIAGNOSTICS_UPDATA_FILENAME,0);
         }
         else
         {
-            ocpp_package_prepare_Status_Req(uniqueId_str, 1);
+            ocpp_chargePoint_sendGetDiagnostics_req(uniqueId_str, NULL,1);
         }
     }
     break;
@@ -3256,6 +3165,7 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
             startTransaction.idTagInfo.parentIdTagIsUse = 1;
             parentIdTag_str = json_object_get_string(parentIdTag_obj);
         }
+        ocpp_chargePoint->RecvStartTransactionResult(startTransaction.transactionId, status_str, expiryDate_str, parentIdTag_str,uniqueId_str);
         // 找到正在交易的枪号
         for (i = 1; i <= ocpp_chargePoint->numberOfConnector; i++)
         {
@@ -3268,11 +3178,11 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
                 break;
             }
         }
+
         if (i > ocpp_chargePoint->numberOfConnector)
         {
             return;
         }
-        ocpp_chargePoint->RecvStartTransactionResult(i, startTransaction.transactionId, status_str, expiryDate_str, parentIdTag_str);
         // 更新认证缓存
         ocpp_localAuthorization_cache_record_t *cache_record = (ocpp_localAuthorization_cache_record_t *)calloc(1, sizeof(ocpp_localAuthorization_cache_record_t));
 
@@ -3339,6 +3249,7 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
                 memcpy(stopTransaction.idTagInfo.parentIdTag, parentIdTag_str, OCPP_AUTHORIZATION_IDTAG_LEN);
             }
         }
+        ocpp_chargePoint->RecvStopTransactionResult(status_str, expiryDate_str, parentIdTag_str,uniqueId_str);
         // 找到正在交易的枪号
         for (i = 1; i <= ocpp_chargePoint->numberOfConnector; i++)
         {
@@ -3356,10 +3267,6 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
         {
             return;
         }
-        read_data_lock();
-        int transactionId = ocpp_chargePoint->transaction_obj[i]->transactionId;
-        rwlock_unlock();
-        ocpp_chargePoint->RecvStopTransactionResult(i, transactionId, status_str, expiryDate_str, parentIdTag_str);
         ocpp_localAuthorization_cache_record_t *cache_record = (ocpp_localAuthorization_cache_record_t *)calloc(1, sizeof(ocpp_localAuthorization_cache_record_t));
 
         memcpy(cache_record->IdTag, ocpp_chargePoint->transaction_obj[i]->stopIdTag, OCPP_AUTHORIZATION_IDTAG_LEN);
