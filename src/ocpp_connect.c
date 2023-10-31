@@ -158,7 +158,7 @@ static int ocpp_connect_service_callback(struct lws *wsi, enum lws_callback_reas
 		unsigned char **p, *end;
 		p = (unsigned char **)in;
 		end = (*p) + len;
-		lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_AUTHORIZATION, basic, value_len, p, end);
+		int ret = lws_add_http_header_by_token(wsi, WSI_TOKEN_HTTP_AUTHORIZATION, basic, value_len, p, end);
 
 		free(authorization);
 		free(user_pwd);
@@ -263,8 +263,9 @@ static void ocpp_connect_send(const char *const message, size_t len)
  * @param:
  * @return:
  */
-static void *ocpp_connect_websocket(ocpp_connect_t *const connect)
+void *ocpp_connect_websocket(void *arg)
 {
+	ocpp_connect_t *connect = (ocpp_connect_t *)arg;
 	struct lws_protocols protocol;
 	struct lws_context_creation_info info;
 	ocpp_connect_initialize_websocket_context(&info, &protocol, connect);
@@ -272,7 +273,7 @@ static void *ocpp_connect_websocket(ocpp_connect_t *const connect)
 	if (context == NULL)
 	{
 		lwsl_notice("初始化上下文失败\n");
-		return;
+		return NULL;
 	}
 
 	lwsl_notice("初始化上下文成功\n"); // 只创建一次上下文，之后的重连都是根据这一次的来，如果多次创建上下文会导致文件描述符的增加，即使调用lws_context_destroy(context);也不能释放，导致设备重启
@@ -325,7 +326,7 @@ static void *ocpp_connect_websocket(ocpp_connect_t *const connect)
  * @param:
  * @return:
  */
-void ocpp_connect_init(ocpp_connect_t *const connect)
+void ocpp_connect_init(ocpp_connect_t *connect)
 {
 	printf("连接初始化");
 	connect->send = ocpp_connect_send;

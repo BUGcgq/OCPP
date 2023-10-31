@@ -105,7 +105,7 @@ int ocpp_AuxiliaryTool_GenerateInt()
 }
 
 /**
- * @description: 获取当前时间字符串 格式为: %Y-%m-%dT%H:%M:%S.000Z
+ * @description: 获取当前时间字符串 格式为: %Y-%m-%dT%H:%M:%S
  * @param:
  * @return:
  */
@@ -117,7 +117,7 @@ char *ocpp_AuxiliaryTool_GetCurrentTime()
     struct tm *now_tm;
     now_tm = localtime(&now);
     char *currentTime = (char *)calloc(1, sizeof(char) * 32);
-    strftime(currentTime, 32, "%Y-%m-%dT%H:%M:%S.000Z", now_tm);
+    strftime(currentTime, 32, "%Y-%m-%dT%H:%M:%S", now_tm);
     currentTime[31] = '\0';
     return currentTime;
 }

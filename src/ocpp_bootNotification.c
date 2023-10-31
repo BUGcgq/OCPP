@@ -4,7 +4,7 @@
 #include "ocpp_bootNotification.h"
 #include "ocpp_configurationKey.h"
 #include "ocpp_chargingProfile.h"
-
+#include "ocpp_auxiliaryTool.h"
 /**
  * @description: boot线程
  * @param:
@@ -41,7 +41,7 @@ void *ocpp_chargePoint_boot(void *arg)
                     for (i = 0; i <= ocpp_chargePoint->numberOfConnector; i++)
                     {
                         oldStatus[i] = ocpp_chargePoint->connector[i]->status;
-                        ocpp_chargePoint_sendStatusNotification_Req(i);
+                        ocpp_chargePoint_sendStatusNotification_req(i);
                     }
                 }
                 if (ocpp_AuxiliaryTool_getDiffTime_ms(&BootNotificationTime) > 30 * 1000)
@@ -63,7 +63,7 @@ void *ocpp_chargePoint_boot(void *arg)
                     {
                         for (i = 0; i <= ocpp_chargePoint->numberOfConnector; i++)
                         {
-                            ocpp_chargePoint_sendStatusNotification_Req(i);
+                            ocpp_chargePoint_sendStatusNotification_req(i);
                         }
                         minimumStatusDurationTime = ocpp_AuxiliaryTool_getSystemTime_ms();
                     }
@@ -75,7 +75,7 @@ void *ocpp_chargePoint_boot(void *arg)
                 }
                 if (ocpp_AuxiliaryTool_getDiffTime_ms(&sendHeartbeatonTime) > sleep_s * 1000)
                 {
-                    ocpp_chargePoint_sendHeartbeat_Req();
+                    ocpp_chargePoint_sendHeartbeat_req();
                     sendHeartbeatonTime = ocpp_AuxiliaryTool_getSystemTime_ms();
                 }
                 if (ocpp_AuxiliaryTool_getDiffTime_ms(&StatusNotificationTime) > 2000 && ocpp_chargePoint->RegistrationStatus == OCPP_PACKAGE_REGISTRATION_STATUS_ACCEPTED)
@@ -86,7 +86,7 @@ void *ocpp_chargePoint_boot(void *arg)
                         {
 
                             oldStatus[i] = ocpp_chargePoint->connector[i]->status;
-                            ocpp_chargePoint_sendStatusNotification_Req(i);
+                            ocpp_chargePoint_sendStatusNotification_req(i);
                         }
                     }
                     StatusNotificationTime = ocpp_AuxiliaryTool_getSystemTime_ms();

@@ -31,7 +31,7 @@ void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
 	int connector = 0;
 	struct tm retrieveDate;
 	memset(&retrieveDate, 0, sizeof(struct tm));
-	strptime(UpdateFirmware->retrieveDate, "%Y-%m-%dT%H:%M:%S.000Z", &retrieveDate);
+	strptime(UpdateFirmware->retrieveDate, "%Y-%m-%dT%H:%M:%S", &retrieveDate);
 	// 计算目标时间的时间戳
 	time_t firmwareTime = mktime(&retrieveDate);
 	int secondsToWait = 0;
@@ -46,7 +46,7 @@ void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
 		write_data_lock();
 		ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING;
 		rwlock_unlock();
-		ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING);
+		ocpp_chargePoint_sendFirmwareStatusNotification_req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADING);
 		usleep(MAX_TIMEOUT_SECONDS * 1000 * 1000);
 		if (ocpp_download_file(UpdateFirmware->location, OCPP_FIRMWARE_UPDATA_FILEPATH, CURL_FTP_mode) == 0)
 		{
@@ -54,7 +54,7 @@ void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
 			write_data_lock();
 			ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADED;
 			rwlock_unlock();
-			ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADED);
+			ocpp_chargePoint_sendFirmwareStatusNotification_req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOADED);
 			usleep(MAX_TIMEOUT_SECONDS * 1000 * 1000);
 			break;
 		}
@@ -63,7 +63,7 @@ void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
 			write_data_lock();
 			ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED;
 			rwlock_unlock();
-			ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED);
+			ocpp_chargePoint_sendFirmwareStatusNotification_req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED);
 			usleep(MAX_TIMEOUT_SECONDS * 1000 * 1000);
 			retries++;
 			continue;
@@ -99,7 +99,7 @@ void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
 				sleep(5); // 休眠 5 秒（根据需求调整等待时间）
 			}
 		}
-		ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_INSTALLING);
+		ocpp_chargePoint_sendFirmwareStatusNotification_req(OCPP_PACKAGE_FIRMWARE_STATUS_INSTALLING);
 		usleep(MAX_TIMEOUT_SECONDS * 1000 * 1000);
 		system("reboot");
 	}

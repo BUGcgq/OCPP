@@ -113,7 +113,7 @@ void *ocpp_chargePoint_Transaction_thread(void *arg)
                     {
                         printf("允许充电\n");
                         ocpp_setChargingProfile(connector);
-                        ocpp_chargePoint->startCharging(connector, item->startupType, Startmetervalue, item->transactionId, temptimestamp, item->startIdTag);
+                        ocpp_chargePoint->startCharging(connector, item->startupType, Startmetervalue, item->transactionId, temptimestamp, item->startIdTag,1);
                         state = OCPP_TRANSACTION_STATE_CHARGING;
                     }
                     else
@@ -127,7 +127,7 @@ void *ocpp_chargePoint_Transaction_thread(void *arg)
             {
                 item->transactionId = ocpp_AuxiliaryTool_GenerateInt(); // 随机生成交易ID
                 ocpp_setChargingProfile(connector);
-                ocpp_chargePoint->startCharging(connector, 2, Startmetervalue, item->transactionId, temptimestamp, item->startIdTag);
+                ocpp_chargePoint->startCharging(connector, 2, Startmetervalue, item->transactionId, temptimestamp, item->startIdTag,0);
                 Startoffline = true;
                 state = OCPP_TRANSACTION_STATE_CHARGING;
             }
@@ -141,7 +141,7 @@ void *ocpp_chargePoint_Transaction_thread(void *arg)
             {
                 if (!Startoffline )
                 {
-                 ocpp_chargePoint_sendMeterValues(connector, item->transactionId);
+                 ocpp_chargePoint_sendMeterValues_req(connector, item->transactionId);
                 }
                 MeterValInterval = ocpp_AuxiliaryTool_getSystemTime_ms();
             }
@@ -163,12 +163,12 @@ void *ocpp_chargePoint_Transaction_thread(void *arg)
             }
             if (Startoffline || sendCnt >= 3 || !ocpp_chargePoint->connect.isConnect) // 离线姿态或者发三次sendStopTransaction超时
             {
-                ocpp_chargePoint->stopCharging(connector, 2, Stopmetervalue, item->transactionId, temptimestamp, item->reason);
+                ocpp_chargePoint->stopCharging(connector, 2, Stopmetervalue, item->transactionId, temptimestamp, item->reason,0);
                 terminate = true;
             }
             if (item->isRecStopTransaction_Conf && item->stopTransaction.idTagInfo.AuthorizationStatus == 0)
             {
-                ocpp_chargePoint->stopCharging(connector, item->startupType, Stopmetervalue, item->transactionId, temptimestamp, item->reason);
+                ocpp_chargePoint->stopCharging(connector, item->startupType, Stopmetervalue, item->transactionId, temptimestamp, item->reason,1);
                 terminate = true;
             }
             break;

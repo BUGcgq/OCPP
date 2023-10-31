@@ -818,5 +818,5 @@ void ocpp_ChargingProfile_init(sqlite3 *ocpp_db)
         return;
     }
 
-    return 0;
+    return ;
 }

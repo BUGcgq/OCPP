@@ -1282,13 +1282,6 @@ static const char * ocpp_package_CallError_ErrorCode_text[] = {
 };
 
 
-// typedef struct{
-
-// 	char error[32];                              //错误
-// 	char detail[256];                            //描述
-
-// }ocpp_package_CallError_ErrorDetail_t;
-
 typedef struct {
     enum OCPP_PACKAGE_CALLERROR_ERRORCODE_E errorCode;
     char errorDescriptionIsUse:1;
@@ -1298,50 +1291,48 @@ typedef struct {
 } ocpp_package_CallError_t;
 
 
-void ocpp_chargePoint_Authorization_IdTag(int connector, const char * idTag);//发送卡号进行认证，平台，本地列表，本地缓存，可关闭
-void ocpp_package_prepare_Status_Req(char *UniqueId, int status);
-int ocpp_chargePoint_sendMeterValues(int connector, int transactionId);
+void ocpp_chargePoint_Authorization_IdTag(int connector, char * idTag);//发送卡号进行认证，平台，本地列表，本地缓存，可关闭
+void ocpp_package_prepare_Status_conf(const char * UniqueId, int status);
+void ocpp_chargePoint_sendMeterValues_req(int connector, int transactionId);
 //发送StartTransaction，StopTransaction
-void ocpp_chargePoint_sendStartTransaction(int connector, const char *idTag, int reservationId, char *UniqueId,char *timestamp,int metervalue);
-void ocpp_transaction_sendStopTransaction(int connector, const char *idTag, int transactionId, const char *UniqueId,int meterStop, char *timestamp,enum OCPP_PACKAGE_STOP_REASON_E reason);
+void ocpp_chargePoint_sendStartTransaction_req(int connector, char *idTag, int reservationId, const char * UniqueId,char *timestamp,int metervalue);
+void ocpp_transaction_sendStopTransaction_req(int connector, char *idTag, int transactionId, const  char * UniqueId,int meterStop, char *timestamp,enum OCPP_PACKAGE_STOP_REASON_E reason);
 //发送Heartbeat，BootNotification，StatusNotification
-int ocpp_chargePoint_sendHeartbeat_Req();
-int ocpp_chargePoint_sendBootNotification_req();
-int ocpp_chargePoint_sendStatusNotification_Req(int connector);
+void ocpp_chargePoint_sendHeartbeat_req();
+void ocpp_chargePoint_sendBootNotification_req();
+void ocpp_chargePoint_sendStatusNotification_req(int connector);
 //身份认证
-int ocpp_chargePoint_sendAuthorize_req(const char *const idTag, char *lastUniqueId);
-int ocpp_chargePoint_sendDiagnosticsStatusNotification_Req(int status);
-int ocpp_chargePoint_sendGetDiagnostics_req(char *UniqueId, char *fileName, int status);
+void ocpp_chargePoint_sendAuthorize_req(char *idTag, const char *lastUniqueId);
+void ocpp_chargePoint_sendDiagnosticsStatusNotification_req(int status);
+void ocpp_chargePoint_sendGetDiagnostics_conf(const char * UniqueId, char *fileName, int status);
 //远程升级
-int ocpp_chargePoint_sendFirmwareStatusNotification_Req(int status);
+void ocpp_chargePoint_sendFirmwareStatusNotification_req(int status);
 //获取配置
-void ocpp_package_prepare_GetConfiguration_Response(const char *UniqueId, ocpp_package_GetConfiguration_conf_t *GetConfiguration);
-void ocpp_chargePoint_manageChangeConfigurationRequest(const char *uniqueId, ocpp_package_ChangeConfiguration_req_t changeConfiguration_req);
+void ocpp_chargePoint_sendGetConfiguration_conf(const char * UniqueId, ocpp_package_GetConfiguration_conf_t *getConfiguration_conf);
+void ocpp_chargePoint_sendChangeConfiguration_conf(const char * UniqueId, ocpp_package_ChangeConfiguration_req_t changeConfiguration_req);
 //远程启动
-void ocpp_chargePoint_manageRemoteStartTransaction_Req(const char *uniqueId, ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req);
-void ocpp_chargePoint_manageRemoteStopTransactionRequest(const char *uniqueId, ocpp_package_RemoteStopTransaction_req_t remoteStopTransaction_req);
+void ocpp_chargePoint_sendRemoteStartTransaction_conf(const char * UniqueId, ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req);
+void ocpp_chargePoint_sendRemoteStopTransaction_conf(const char * UniqueId, ocpp_package_RemoteStopTransaction_req_t remoteStopTransaction_req);
 //获取本地列表版本号，保存本地列表名单
-void ocpp_chargePoint_GetLocalListVersion_Req(const char *uniqueId);
-void ocpp_chargePoint_manageSendLocalList_Req(const char *uniqueId, ocpp_package_SendLocalList_req_t *sendLocalList_req);
+void ocpp_chargePoint_sendGetLocalListVersion_conf(const char * UniqueId);
+void ocpp_chargePoint_sendSendLocalList_conf(const char * UniqueId, ocpp_package_SendLocalList_req_t *sendLocalList_req);
 //获取状态
-void ocpp_chargePoint_manageTriggerMessageRequest(const char *uniqueId, ocpp_package_TriggerMessage_req_t triggerMessage_req);
+void ocpp_chargePoint_sendTriggerMessage_conf(const char * UniqueId, ocpp_package_TriggerMessage_req_t triggerMessage_req);
 //预约和取消预约
-void ocpp_chargePoint_manageReserveNowRequest(const char *uniqueId, ocpp_package_ReserveNow_req_t reserveNow_req);
-void ocpp_chargePoint_manageCancelReservationRequest(const char *uniqueId, ocpp_package_CancelReservation_req_t cancelReservation_req);
+void ocpp_chargePoint_sendReserveNow_conf(const char * UniqueId, ocpp_package_ReserveNow_req_t reserveNow_req);
+void ocpp_chargePoint_sendCancelReservation_conf(const char * UniqueId, ocpp_package_CancelReservation_req_t cancelReservation_req);
 //清除缓存
-void ocpp_chargePoint_manageClearCacheRequest(const char *uniqueId, ocpp_package_ClearCache_req_t clearCache_req);
+void ocpp_chargePoint_sendClearCacheRequest_conf(const char * UniqueId, ocpp_package_ClearCache_req_t clearCache_req);
 //更改可用性
-void ocpp_chargePoint_manageChangeAvailabilityRequest(const char *uniqueId, ocpp_package_ChangeAvailability_req_t changeAvailability_req);
+void ocpp_chargePoint_sendChangeAvailability_conf(const char * UniqueId, ocpp_package_ChangeAvailability_req_t changeAvailability_req);
 //
-void ocpp_chargePoint_manageUnlockConnectorRequest(const char *uniqueId, ocpp_package_UnlockConnector_req_t unlockConnector_req);
+void ocpp_chargePoint_sendUnlockConnector_conf(const char * UniqueId, ocpp_package_UnlockConnector_req_t unlockConnector_req);
 //
-void ocpp_chargePoint_manageResetRequest(const char *uniqueId, ocpp_package_Reset_req_t reset_req);
+void ocpp_chargePoint_sendResetRequest_conf(const char * UniqueId, ocpp_package_Reset_req_t reset_req);
 //
-void ocpp_chargePoint_manageGetCompositeScheduleRequest(const char *uniqueId, ChargingProfile chargingProfile);
+void ocpp_chargePoint_sendGetCompositeSchedule_conf(const char * UniqueId, ChargingProfile chargingProfile);
 
-void ocpp_chargePoint_manageRemoteStartTransactionRequest(const char *uniqueId, ocpp_package_RemoteStartTransaction_req_t remoteStartTransaction_req);
-
-char * ocpp_package_prepare_CallError(const char *UniqueId, ocpp_package_CallError_t * callError);
+char * ocpp_package_prepare_CallError(const char * UniqueId, ocpp_package_CallError_t * callError);
 
 
 

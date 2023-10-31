@@ -40,7 +40,25 @@ void ocpp_chargePoint_setDefault(int connector)
 
     return;
 }
-void ocpp_chargePoint_Chargingint(int connector, int type)
+void ocpp_chargePoint_StartChargingint(int connector, int type, float metervalue, int transactionId, char *timestamp, char *idTag,bool StartResponse)
+{
+
+    return;
+}
+
+void ocpp_chargePoint_StopChargingint(int connector, int type, float metervalue, int transactionId, char *timestamp, enum OCPP_PACKAGE_STOP_REASON_E reason,bool StartResponse)
+{
+
+    return;
+}
+
+void ocpp_chargePoint_RecvStartTransactionResult(int transactionId, const char *status, const char *expiryDate, const char *parentIdTag, const char *UniqueId)
+{
+
+    return;
+}
+
+void ocpp_chargePoint_RecvStopTransactionResult(const char *status, const char *expiryDate, const char *parentIdTag, const char *UniqueId)
 {
 
     return;
@@ -196,86 +214,6 @@ bool ocpp_chargePoint_setConnectStatus(bool Status)
     return true;
 }
 
-/**
- * @description:
- * @param:
- * @return: 0:fail , 1:ongoing, 2:success, 3:unkown
- */
-enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E ocpp_chargePoint_authorizationOfIdentifier(const char *const idTag, char *uniqueId)
-{
-    if (idTag == NULL)
-        return OCPP_CHARGEPOINT_AUTHORIZE_RESULT_FAIL;
-
-    int localAuthorizeOffline = 0;
-    int authorizationCacheEnabled = 0;
-    int localAuthListEnabled = 0;
-    int localPreAuthorize = 0;
-
-    ocpp_ConfigurationKey_getValue(ocpp_configurationKeyText[OCPP_CK_LocalAuthorizeOffline], (void *)&localAuthorizeOffline);
-    ocpp_ConfigurationKey_getValue(ocpp_configurationKeyText[OCPP_CK_AuthorizationCacheEnabled], (void *)&authorizationCacheEnabled);
-    ocpp_ConfigurationKey_getValue(ocpp_configurationKeyText[OCPP_CK_LocalAuthListEnabled], (void *)&localAuthListEnabled);
-    ocpp_ConfigurationKey_getValue(ocpp_configurationKeyText[OCPP_CK_LocalPreAuthorize], (void *)&localPreAuthorize);
-    if (ocpp_chargePoint->connect.isConnect) // 服务器连接的情况下发送IdTag
-    {
-        ocpp_chargePoint_sendAuthorize_req(idTag, uniqueId);
-        if (localPreAuthorize) // 支持localPreAuthorize授权
-        {
-            if (localAuthListEnabled) // 打开localAuthListEnabled
-            {
-                if (ocpp_localAuthorization_List_search(idTag)) // 本地列表是否存在IdTag
-                {
-                    if (ocpp_localAuthorization_List_isValid(idTag))
-                    {
-                        return OCPP_CHARGEPOINT_AUTHORIZE_RESULT_SUCCEED; // 列表有效
-                    }
-                }
-            }
-
-            if (authorizationCacheEnabled) // 打开authorizationCacheEnabled
-            {
-                if (ocpp_localAuthorization_Cache_search(idTag)) // 缓存是否存在IdTag
-                {
-                    if (ocpp_localAuthorization_Cache_isValid(idTag))
-                    {
-                        return OCPP_CHARGEPOINT_AUTHORIZE_RESULT_SUCCEED; // 缓存有效
-                    }
-                }
-            }
-        }
-
-        return OCPP_CHARGEPOINT_AUTHORIZE_RESULT_ONGOING;
-    }
-    else
-    {
-        if (localAuthorizeOffline)
-        {
-            if (localAuthListEnabled)
-            {
-                if (ocpp_localAuthorization_List_search(idTag)) // 本地列表是否存在IdTag
-                {
-                    if (ocpp_localAuthorization_List_isValid(idTag))
-                    {
-                        return OCPP_CHARGEPOINT_AUTHORIZE_RESULT_SUCCEED; // 列表有效
-                    }
-                }
-            }
-
-            if (authorizationCacheEnabled)
-            {
-                if (ocpp_localAuthorization_Cache_search(idTag)) // 缓存是否存在IdTag
-                {
-                    if (ocpp_localAuthorization_Cache_isValid(idTag))
-                    {
-                        return OCPP_CHARGEPOINT_AUTHORIZE_RESULT_SUCCEED; // 缓存有效
-                    }
-                }
-            }
-        }
-    }
-
-    return OCPP_CHARGEPOINT_AUTHORIZE_RESULT_FAIL;
-}
-
 ///////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////
@@ -286,7 +224,7 @@ enum OCPP_CHARGEPOINT_AUTHORIZE_RESULT_E ocpp_chargePoint_authorizationOfIdentif
  * @param {ocpp_package_ClearChargingProfile_req_t} clearChargingProfile
  * @return {*}
  */
-void ocpp_chargePoint_manageClearChargingProfileRequest(const char *uniqueId, ocpp_package_ClearChargingProfile_req_t clearChargingProfile)
+void ocpp_chargePoint_manageClearChargingProfileRequest(const const char *uniqueId, ocpp_package_ClearChargingProfile_req_t clearChargingProfile)
 {
 }
 
@@ -296,10 +234,9 @@ void ocpp_chargePoint_manageClearChargingProfileRequest(const char *uniqueId, oc
  * @param {ocpp_package_DataTransfer_req_t} dataTransfer
  * @return {*}
  */
-void ocpp_chargePoint_manageDataTransferRequest(const char *uniqueId, ocpp_package_DataTransfer_req_t dataTransfer)
+void ocpp_chargePoint_manageDataTransferRequest(const const char *uniqueId, ocpp_package_DataTransfer_req_t dataTransfer)
 {
 }
-
 
 /**
  * @description:
@@ -307,7 +244,7 @@ void ocpp_chargePoint_manageDataTransferRequest(const char *uniqueId, ocpp_packa
  * @param {ocpp_package_GetConfiguration_req_t } getConfiguration
  * @return {*}
  */
-void ocpp_chargePoint_manage_GetConfigurationRequest(const char *uniqueId, ocpp_package_GetConfiguration_req_t getConfiguration_req)
+void ocpp_chargePoint_manage_GetConfigurationRequest(const const char *uniqueId, ocpp_package_GetConfiguration_req_t getConfiguration_req)
 {
     if (uniqueId == NULL)
     {
@@ -381,7 +318,7 @@ void ocpp_chargePoint_manage_GetConfigurationRequest(const char *uniqueId, ocpp_
         }
     }
 
-    ocpp_package_prepare_GetConfiguration_Response(uniqueId, getConfiguration_conf);
+    ocpp_chargePoint_sendGetConfiguration_conf(uniqueId, getConfiguration_conf);
 
     free(getConfiguration_conf);
 }
@@ -416,7 +353,7 @@ void ocpp_chargePoint_manageGetDiagnosticsRequest(ocpp_package_GetDiagnostics_re
         write_data_lock();
         ocpp_chargePoint->ocpp_diagnostics_lastDiagnosticsStatus = OCPP_PACKAGE_DIAGNOSTICS_STATUS_IDLE;
         rwlock_unlock();
-        ocpp_chargePoint_sendDiagnosticsStatusNotification_Req(OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOAD_FAILED);
+        ocpp_chargePoint_sendDiagnosticsStatusNotification_req(OCPP_PACKAGE_DIAGNOSTICS_STATUS_UPLOAD_FAILED);
         printf("create firmware thread fail\n");
     }
     else
@@ -457,7 +394,7 @@ void ocpp_chargePoint_manageUpdateFirmwareRequest(ocpp_package_UpdateFirmware_re
         write_data_lock();
         ocpp_chargePoint->ocpp_firmwareUpdate_lastUpdateState = OCPP_PACKAGE_FIRMWARE_STATUS_IDLE;
         rwlock_unlock();
-        ocpp_chargePoint_sendFirmwareStatusNotification_Req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED);
+        ocpp_chargePoint_sendFirmwareStatusNotification_req(OCPP_PACKAGE_FIRMWARE_STATUS_DOWNLOAD_FAILED);
         printf("create firmware thread fail\n");
     }
 }
@@ -519,7 +456,7 @@ static bool ocpp_chargePoint_checkCancelReservation_Callpackage(const char *uniq
  * @param {json_object} *payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkChangeAvailablility_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkChangeAvailablility_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     json_object *connectorId_obj = json_object_object_get(payload_obj, "connectorId");
@@ -604,7 +541,7 @@ static bool ocpp_chargePoint_checkChangeAvailablility_Callpackage(const char *un
  * @param {json_object} *payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkChangeConfiguration_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkChangeConfiguration_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     json_object *key_obj = json_object_object_get(payload_obj, "key");
@@ -677,7 +614,7 @@ static bool ocpp_chargePoint_checkChangeConfiguration_Callpackage(const char *un
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkClearCache_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkClearCache_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     return false;
@@ -689,7 +626,7 @@ static bool ocpp_chargePoint_checkClearCache_Callpackage(const char *uniqueId, j
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkClearChargingProfile_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkClearChargingProfile_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     bool isError = true;
@@ -760,7 +697,7 @@ static bool ocpp_chargePoint_checkClearChargingProfile_Callpackage(const char *u
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkDataTransfer_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkDataTransfer_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     return false;
@@ -772,7 +709,7 @@ static bool ocpp_chargePoint_checkDataTransfer_Callpackage(const char *uniqueId,
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkGetCompositeSchedule_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkGetCompositeSchedule_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     bool isError = true;
@@ -868,7 +805,7 @@ static bool ocpp_chargePoint_checkGetCompositeSchedule_Callpackage(const char *u
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkGetConfiguration_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkGetConfiguration_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     json_object *key_obj = json_object_object_get(payload_obj, "key");
@@ -932,7 +869,7 @@ static bool ocpp_chargePoint_checkGetConfiguration_Callpackage(const char *uniqu
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkGetDiagnostics_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkGetDiagnostics_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     bool isError = true;
@@ -1010,7 +947,7 @@ static bool ocpp_chargePoint_checkGetDiagnostics_Callpackage(const char *uniqueI
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkGetLocalListVersion_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkGetLocalListVersion_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     return false;
@@ -1022,7 +959,7 @@ static bool ocpp_chargePoint_checkGetLocalListVersion_Callpackage(const char *un
  * @param {json_object} *payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkRemoteStartTransaction_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkRemoteStartTransaction_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     json_object *idTag_obj = json_object_object_get(payload_obj, "idTag");
@@ -1076,7 +1013,7 @@ static bool ocpp_chargePoint_checkRemoteStartTransaction_Callpackage(const char 
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkRemoteStopTransaction_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkRemoteStopTransaction_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     bool isError = false;
@@ -1114,7 +1051,7 @@ static bool ocpp_chargePoint_checkRemoteStopTransaction_Callpackage(const char *
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkReserveNow_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkReserveNow_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
     bool isError = true;
 
@@ -1211,7 +1148,7 @@ static bool ocpp_chargePoint_checkReserveNow_Callpackage(const char *uniqueId, j
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkReset_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkReset_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     bool isError = true;
@@ -1281,7 +1218,7 @@ static bool ocpp_chargePoint_checkReset_Callpackage(const char *uniqueId, json_o
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkSendLocalList_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkSendLocalList_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     json_object *listVersion_obj = json_object_object_get(payload_obj, "listVersion");
@@ -1375,7 +1312,7 @@ static bool ocpp_chargePoint_checkSendLocalList_Callpackage(const char *uniqueId
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkSetChargingProfile_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkSetChargingProfile_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
     bool isError = true;
     ocpp_package_CallError_t callError;
@@ -1428,7 +1365,7 @@ static bool ocpp_chargePoint_checkSetChargingProfile_Callpackage(const char *uni
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkTriggerMessage_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkTriggerMessage_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     bool isError = true;
@@ -1515,7 +1452,7 @@ static bool ocpp_chargePoint_checkTriggerMessage_Callpackage(const char *uniqueI
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkUnlockConnector_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkUnlockConnector_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     json_object *connectorId_obj = json_object_object_get(payload_obj, "connectorId");
@@ -1576,7 +1513,7 @@ static bool ocpp_chargePoint_checkUnlockConnector_Callpackage(const char *unique
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkUpdateFirmware_Callpackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkUpdateFirmware_Callpackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     bool isError = true;
@@ -1645,7 +1582,7 @@ static bool ocpp_chargePoint_checkUpdateFirmware_Callpackage(const char *uniqueI
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkBootNotification_callResultPackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkBootNotification_callResultPackage(const const char *uniqueId, json_object *payload_obj)
 {
     bool isError = true;
 
@@ -1729,7 +1666,7 @@ static bool ocpp_chargePoint_checkBootNotification_callResultPackage(const char 
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkAuthorize_callResultPackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkAuthorize_callResultPackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     bool isError = true;
@@ -1814,7 +1751,7 @@ static bool ocpp_chargePoint_checkAuthorize_callResultPackage(const char *unique
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkDataTransfer_callResultPackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkDataTransfer_callResultPackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     return false;
@@ -1826,7 +1763,7 @@ static bool ocpp_chargePoint_checkDataTransfer_callResultPackage(const char *uni
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkDiagnosticsStatusNotification_callResultPackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkDiagnosticsStatusNotification_callResultPackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     return false;
@@ -1838,7 +1775,7 @@ static bool ocpp_chargePoint_checkDiagnosticsStatusNotification_callResultPackag
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkFirmwareStatusNotification_callResultPackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkFirmwareStatusNotification_callResultPackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     return false;
@@ -1850,7 +1787,7 @@ static bool ocpp_chargePoint_checkFirmwareStatusNotification_callResultPackage(c
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkHeartbeat_callResultPackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkHeartbeat_callResultPackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     bool isError = true;
@@ -1900,7 +1837,7 @@ static bool ocpp_chargePoint_checkHeartbeat_callResultPackage(const char *unique
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkMeterValues_callResultPackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkMeterValues_callResultPackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     return false;
@@ -1912,7 +1849,7 @@ static bool ocpp_chargePoint_checkMeterValues_callResultPackage(const char *uniq
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkStartTransaction_callResultPackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkStartTransaction_callResultPackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     bool isError = true;
@@ -2009,7 +1946,7 @@ static bool ocpp_chargePoint_checkStartTransaction_callResultPackage(const char 
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkStatusNotification_callResultPackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkStatusNotification_callResultPackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     return false;
@@ -2021,7 +1958,7 @@ static bool ocpp_chargePoint_checkStatusNotification_callResultPackage(const cha
  * @param {json_object *} payload_obj
  * @return {*}
  */
-static bool ocpp_chargePoint_checkStopTransaction_callResultPackage(const char *uniqueId, json_object *payload_obj)
+static bool ocpp_chargePoint_checkStopTransaction_callResultPackage(const const char *uniqueId, json_object *payload_obj)
 {
 
     bool isError = true;
@@ -2153,7 +2090,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
 
         json_object *reservationId_obj = json_object_object_get(payload_obj, "reservationId");
         cancelReservation_req.reservationId = json_object_get_int(reservationId_obj);
-        ocpp_package_prepare_Status_Req(uniqueId_str, 3);
+        ocpp_package_prepare_Status_conf(uniqueId_str, 3);
         // ocpp_chargePoint_manageCancelReservationRequest(uniqueId_str, cancelReservation_req);
     }
     break;
@@ -2184,7 +2121,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
             return;
         changeAvailability_req.type = i;
 
-        ocpp_chargePoint_manageChangeAvailabilityRequest(uniqueId_str, changeAvailability_req);
+        ocpp_chargePoint_sendChangeAvailability_conf(uniqueId_str, changeAvailability_req);
     }
     break;
 
@@ -2205,7 +2142,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         strncpy(changeConfiguration_req.key, key_str, 50);
         strncpy(changeConfiguration_req.value, value_str, 500);
 
-        ocpp_chargePoint_manageChangeConfigurationRequest(uniqueId_str, changeConfiguration_req);
+        ocpp_chargePoint_sendChangeConfiguration_conf(uniqueId_str, changeConfiguration_req);
     }
     break;
 
@@ -2216,7 +2153,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         ocpp_package_ClearCache_req_t clearCache_req;
         memset(&clearCache_req, 0, sizeof(clearCache_req));
 
-        ocpp_chargePoint_manageClearCacheRequest(uniqueId_str, clearCache_req);
+        ocpp_chargePoint_sendClearCacheRequest_conf(uniqueId_str, clearCache_req);
     }
     break;
 
@@ -2246,18 +2183,18 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         }
         if (ocpp_ChargingProfile_delete(connectorId, stackLevel, id) == 0)
         {
-            ocpp_package_prepare_Status_Req(uniqueId_str, 0);
+            ocpp_package_prepare_Status_conf(uniqueId_str, 0);
         }
         else
         {
-            ocpp_package_prepare_Status_Req(uniqueId_str, 1);
+            ocpp_package_prepare_Status_conf(uniqueId_str, 1);
         }
     }
     break;
 
     case OCPP_PACKAGE_DATATRANSFER:
     {
-        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
+        ocpp_package_prepare_Status_conf(uniqueId_str, 0);
     }
     break;
 
@@ -2287,11 +2224,11 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         }
         if (ocpp_ChargingProfile_find(chargingProfiles.connectorId, chargingRateUnit, duration, &chargingProfiles) == 0)
         {
-            ocpp_chargePoint_manageGetCompositeScheduleRequest(uniqueId_str, chargingProfiles);
+            ocpp_chargePoint_sendGetCompositeSchedule_conf(uniqueId_str, chargingProfiles);
         }
         else
         {
-            ocpp_package_prepare_Status_Req(uniqueId_str, 1);
+            ocpp_package_prepare_Status_conf(uniqueId_str, 1);
         }
         if (chargingProfiles.chargingSchedule.chargingSchedulePeriods)
         {
@@ -2405,11 +2342,11 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         if (DiagnosticsStatus == OCPP_PACKAGE_DIAGNOSTICS_STATUS_IDLE)
         {
             ocpp_chargePoint_manageGetDiagnosticsRequest(getDiagnostics_req);
-            ocpp_chargePoint_sendGetDiagnostics_req(uniqueId_str,OCPP_DIAGNOSTICS_UPDATA_FILENAME,0);
+            ocpp_chargePoint_sendGetDiagnostics_conf(uniqueId_str, OCPP_DIAGNOSTICS_UPDATA_FILENAME, 0);
         }
         else
         {
-            ocpp_chargePoint_sendGetDiagnostics_req(uniqueId_str, NULL,1);
+            ocpp_chargePoint_sendGetDiagnostics_conf(uniqueId_str, NULL, 1);
         }
     }
     break;
@@ -2419,7 +2356,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         if (ocpp_chargePoint_checkGetLocalListVersion_Callpackage(uniqueId_str, payload_obj))
             return;
 
-        ocpp_chargePoint_GetLocalListVersion_Req(uniqueId_str);
+        ocpp_chargePoint_sendGetLocalListVersion_conf(uniqueId_str);
     }
     break;
 
@@ -2549,7 +2486,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
                 }
             }
             printf("接受到远程启动充电\n");
-            ocpp_chargePoint_manageRemoteStartTransaction_Req(uniqueId_str, remoteStartTransaction_req);
+            ocpp_chargePoint_sendRemoteStartTransaction_conf(uniqueId_str, remoteStartTransaction_req);
         }
     }
     break;
@@ -2566,7 +2503,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
 
         remoteStopTransaction_req.transactionId = json_object_get_int(transactionId_obj);
 
-        ocpp_chargePoint_manageRemoteStopTransactionRequest(uniqueId_str, remoteStopTransaction_req);
+        ocpp_chargePoint_sendRemoteStopTransaction_conf(uniqueId_str, remoteStopTransaction_req);
     }
     break;
 
@@ -2600,7 +2537,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
             const char *parentIdTag_str = json_object_get_string(parentIdTag_obj);
             strncpy(reserveNow_req.parentIdTag, parentIdTag_str, OCPP_AUTHORIZATION_IDTAG_LEN);
         }
-        ocpp_package_prepare_Status_Req(uniqueId_str, 3);
+        ocpp_package_prepare_Status_conf(uniqueId_str, 3);
     }
     break;
 
@@ -2623,7 +2560,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         }
 
         reset_req.type = index;
-        ocpp_chargePoint_manageResetRequest(uniqueId_str, reset_req);
+        ocpp_chargePoint_sendResetRequest_conf(uniqueId_str, reset_req);
     }
     break;
 
@@ -2713,7 +2650,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
             }
         }
 
-        ocpp_chargePoint_manageSendLocalList_Req(uniqueId_str, &sendLocalList_req);
+        ocpp_chargePoint_sendSendLocalList_conf(uniqueId_str, &sendLocalList_req);
         if (sendLocalList_req.localAuthorizationList)
         {
             free(sendLocalList_req.localAuthorizationList);
@@ -2838,11 +2775,11 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
 
         if (ocpp_ChargingProfile_insert(chargingProfiles.connectorId, &chargingProfiles) == 0)
         {
-            ocpp_package_prepare_Status_Req(uniqueId_str, 0);
+            ocpp_package_prepare_Status_conf(uniqueId_str, 0);
         }
         else
         {
-            ocpp_package_prepare_Status_Req(uniqueId_str, 1);
+            ocpp_package_prepare_Status_conf(uniqueId_str, 1);
         }
 
         printChargingProfile(&chargingProfiles);
@@ -2880,7 +2817,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
             triggerMessage_req.connectorId = json_object_get_int(connectorId_obj);
         }
 
-        ocpp_chargePoint_manageTriggerMessageRequest(uniqueId_str, triggerMessage_req);
+        ocpp_chargePoint_sendTriggerMessage_conf(uniqueId_str, triggerMessage_req);
     }
     break;
 
@@ -2895,8 +2832,7 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         memset(&unlockConnector_req, 0, sizeof(unlockConnector_req));
 
         unlockConnector_req.connectorId = json_object_get_int(connectorId_obj);
-        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
-        // ocpp_chargePoint_manageUnlockConnectorRequest(uniqueId_str, unlockConnector_req);
+        ocpp_package_prepare_Status_conf(uniqueId_str, 0);
     }
     break;
 
@@ -2935,11 +2871,11 @@ static void ocpp_chargePoint_Call_Handler(json_object *jobj)
         if (UpdateState == OCPP_PACKAGE_FIRMWARE_STATUS_IDLE)
         {
             ocpp_chargePoint_manageUpdateFirmwareRequest(updateFirmware_req);
-            ocpp_package_prepare_Status_Req(uniqueId_str, OCPP_PACKAGE_CONFIGURATION_STATUS_ACCEPTED);
+            ocpp_package_prepare_Status_conf(uniqueId_str, OCPP_PACKAGE_CONFIGURATION_STATUS_ACCEPTED);
         }
         else
         {
-            ocpp_package_prepare_Status_Req(uniqueId_str, OCPP_PACKAGE_CONFIGURATION_STATUS_REJECTED);
+            ocpp_package_prepare_Status_conf(uniqueId_str, OCPP_PACKAGE_CONFIGURATION_STATUS_REJECTED);
         }
         break;
     }
@@ -3030,7 +2966,7 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
     {
         if (ocpp_chargePoint_checkDiagnosticsStatusNotification_callResultPackage(uniqueId_str, payload_obj))
             return;
-        ocpp_package_prepare_Status_Req(uniqueId_str, 0);
+        ocpp_package_prepare_Status_conf(uniqueId_str, 0);
     }
     break;
 
@@ -3165,7 +3101,7 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
             startTransaction.idTagInfo.parentIdTagIsUse = 1;
             parentIdTag_str = json_object_get_string(parentIdTag_obj);
         }
-        ocpp_chargePoint->RecvStartTransactionResult(startTransaction.transactionId, status_str, expiryDate_str, parentIdTag_str,uniqueId_str);
+        ocpp_chargePoint->RecvStartTransactionResult(startTransaction.transactionId, status_str, expiryDate_str, parentIdTag_str, uniqueId_str);
         // 找到正在交易的枪号
         for (i = 1; i <= ocpp_chargePoint->numberOfConnector; i++)
         {
@@ -3249,7 +3185,7 @@ static void ocpp_chargePoint_CallResult_Handler(json_object *jobj, enum OCPP_PAC
                 memcpy(stopTransaction.idTagInfo.parentIdTag, parentIdTag_str, OCPP_AUTHORIZATION_IDTAG_LEN);
             }
         }
-        ocpp_chargePoint->RecvStopTransactionResult(status_str, expiryDate_str, parentIdTag_str,uniqueId_str);
+        ocpp_chargePoint->RecvStopTransactionResult(status_str, expiryDate_str, parentIdTag_str, uniqueId_str);
         // 找到正在交易的枪号
         for (i = 1; i <= ocpp_chargePoint->numberOfConnector; i++)
         {
@@ -3430,29 +3366,7 @@ static void ocpp_chargePoint_Recv_Handler()
         }
     }
 }
-// 函数用于检查日期和时间是否已经过期
-int isExpired(const char *expiryDate)
-{
-    // 获取当前时间
-    time_t currentTime;
-    time(&currentTime);
 
-    // 将日期和时间字符串转换为tm结构体
-    struct tm expiryTime;
-    memset(&expiryTime, 0, sizeof(struct tm));
-
-    if (strptime(expiryDate, "%Y-%m-%dT%H:%M:%S", &expiryTime) == NULL)
-    {
-        // 日期时间解析失败
-        return 1; // 假设未过期
-    }
-
-    // 将tm结构体转换为时间戳
-    time_t expiryTimestamp = mktime(&expiryTime);
-
-    // 比较当前时间和过期时间
-    return (expiryTimestamp <= currentTime);
-}
 /**
  * @description:
  * @param
@@ -3620,19 +3534,22 @@ static void ocpp_chargePoint_defaultFunc()
         ocpp_chargePoint->userPushStopButton = ocpp_chargePoint_userPushStopButton;
 
     if (ocpp_chargePoint->startCharging == NULL)
-        ocpp_chargePoint->startCharging = ocpp_chargePoint_Chargingint;
+        ocpp_chargePoint->startCharging = ocpp_chargePoint_StartChargingint;
+
+    if (ocpp_chargePoint->stopCharging == NULL)
+        ocpp_chargePoint->stopCharging = ocpp_chargePoint_StopChargingint;
 
     if (ocpp_chargePoint->sendAuthorization == NULL)
         ocpp_chargePoint->sendAuthorization = ocpp_chargePoint_Authorization_IdTag;
-        
+
     if (ocpp_chargePoint->remoteStopCharging == NULL)
         ocpp_chargePoint->remoteStopCharging = ocpp_chargePoint_setDefault;
 
     if (ocpp_chargePoint->sendStartTransaction == NULL)
-        ocpp_chargePoint->sendStartTransaction = ocpp_chargePoint_sendStartTransaction;
+        ocpp_chargePoint->sendStartTransaction = ocpp_chargePoint_sendStartTransaction_req;
 
     if (ocpp_chargePoint->sendStopTransaction == NULL)
-        ocpp_chargePoint->sendStopTransaction = ocpp_transaction_sendStopTransaction;
+        ocpp_chargePoint->sendStopTransaction = ocpp_transaction_sendStopTransaction_req;
 
     if (ocpp_chargePoint->getOcppStatus == NULL)
         ocpp_chargePoint->getOcppStatus = ocpp_chargePoint_getConnectStatus;
@@ -3640,6 +3557,11 @@ static void ocpp_chargePoint_defaultFunc()
     if (ocpp_chargePoint->setOcppStatus == NULL)
         ocpp_chargePoint->setOcppStatus = ocpp_chargePoint_setConnectStatus;
 
+    if (ocpp_chargePoint->RecvStartTransactionResult == NULL)
+        ocpp_chargePoint->RecvStartTransactionResult = ocpp_chargePoint_RecvStartTransactionResult;
+
+    if (ocpp_chargePoint->RecvStopTransactionResult == NULL)
+        ocpp_chargePoint->RecvStopTransactionResult = ocpp_chargePoint_RecvStopTransactionResult;
 }
 
 /**

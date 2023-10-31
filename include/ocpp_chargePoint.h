@@ -280,9 +280,9 @@ typedef struct{
     bool (*getMeterSerialNumber)(char * const str, int len);
     bool (*getMeterType)(char * const str, int len);
 
-    void (*sendAuthorization)(int connector, const char * idTag);
-    void (*sendStartTransaction)(int connector, const char *idTag, int reservationId, char *UniqueId,char *timestamp,int metervalue);//发送sendStartTransaction
-    void (*sendStopTransaction)(int connector, const char *idTag, int transactionId, const char *UniqueId,int meterStop, char *timestamp,enum OCPP_PACKAGE_STOP_REASON_E reason);
+    void (*sendAuthorization)(int connector, char * idTag);
+    void (*sendStartTransaction)(int connector, char *idTag, int reservationId, const char * UniqueId,char *timestamp,int metervalue);//发送sendStartTransaction
+    void (*sendStopTransaction)(int connector, char *idTag, int transactionId, const  char * UniqueId,int meterStop, char *timestamp,enum OCPP_PACKAGE_STOP_REASON_E reason);
     //发送身份认证后会触发回调返回结果，connector枪，result - 0认证不通过，1-认证通过
     void (*RecvAuthorizeResult)(int connector, int result);
     void (*RecvStartTransactionResult)(int transactionId,const char * status,const char * expiryDate,const char *parentIdTag,const char *UniqueId);
@@ -315,8 +315,8 @@ typedef struct{
     
     float (*getCurrentMeterValues)(int connector);               //获取当前电表值
 
-    void (*startCharging)(int connector, int type, float metervalue,int transactionId,char *timestamp,char * idTag); //OCPP启动充电进行回调 ,type 0 刷卡启动，1远程启动,2离线启动服务器不回复则type为2
-    void (*stopCharging)(int connector, int type,  float metervalue,int transactionId,char *timestamp,enum OCPP_PACKAGE_STOP_REASON_E  reason); //如果接收到服务器StopTransaction会进行回调服务器不回复则type为2
+    void (*startCharging)(int connector, int type, float metervalue,int transactionId,char *timestamp,char * idTag,bool StartResponse); //OCPP启动充电进行回调 ,type 0 刷卡启动，1远程启动,2离线启动服务器不回复则type为2
+    void (*stopCharging)(int connector, int type,  float metervalue,int transactionId,char *timestamp,enum OCPP_PACKAGE_STOP_REASON_E  reason,bool StopResponse); //如果接收到服务器StopTransaction会进行回调服务器不回复则type为2
     void (*userPushStartButton)(char * idTag, int connector);                                             //用户点击启动充电
     void (*userPushStopButton)(char * idTag, int connector, enum OCPP_PACKAGE_STOP_REASON_E  reason);     //用户点击停止充电    
 
