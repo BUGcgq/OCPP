@@ -8,7 +8,7 @@ extern "C" {
 #include <stdbool.h>
 #include <sqlite3.h>
 #include "ocpp_config.h"
-#include <ocpp_chargePoint.h>
+#include "ocpp_chargePoint.h"
 
 
 

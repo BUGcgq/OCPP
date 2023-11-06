@@ -400,8 +400,8 @@ static int ocpp_ConfigurationKey_default_init(OCPP_ConfigurationKey_t *OCPP_Conf
 			return -1; // 处理表格清空失败的情况
 		}
 	}
-
-	for (int i = 0; i < size; i++)
+	int i;
+	for (i = 0; i < size; i++)
 	{
 		// 根据联合体类型将值转换为文本
 		char valueText[512];

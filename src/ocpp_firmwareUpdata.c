@@ -85,7 +85,8 @@ void *ocpp_chargePoint_UpdateFirmware_thread(void *arg)
 		{
 			allChargersStopped = 1; // 假设所有枪都已停止充电
 			read_data_lock();
-			for (int connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
+			int connector;
+			for (connector = 1; connector <= ocpp_chargePoint->numberOfConnector; connector++)
 			{
 				if (ocpp_chargePoint->transaction_obj[connector]->isTransaction)
 				{
